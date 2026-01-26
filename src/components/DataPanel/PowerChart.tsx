@@ -12,20 +12,32 @@ import {
   ReferenceDot,
 } from 'recharts';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
-import { useSimulatorStore } from '../../store/simulatorStore';
+import { useSimulatorStore, selectSystemSize } from '../../store/simulatorStore';
 
 export function PowerChart() {
   const { hourlyPowerData, dailyOutput, isNight } = useSolarCalculation();
   const { animationHour } = useSimulatorStore();
+  const systemSizeKw = useSimulatorStore(selectSystemSize);
 
+  // Convert power data to kW for cleaner display
   const data = useMemo(() => {
     return hourlyPowerData.map((h) => ({
       hour: h.hour,
-      power: Math.round(h.power),
+      powerKw: h.power / 1000, // Convert W to kW
       isNight: h.isNight,
       label: `${h.hour}:00`,
     }));
   }, [hourlyPowerData]);
+
+  // Calculate Y-axis domain based on system capacity and peak power
+  const yAxisDomain = useMemo(() => {
+    const peakKw = Math.max(...data.map(d => d.powerKw), 0);
+    // yMax = max(peak * 1.1, systemCapacity * 1.05) rounded up to nice number
+    const maxValue = Math.max(peakKw * 1.1, systemSizeKw * 1.05);
+    // Round up to nearest 0.5 kW for cleaner axis
+    const yMax = Math.ceil(maxValue * 2) / 2;
+    return [0, Math.max(yMax, 1)]; // At least 1 kW max
+  }, [data, systemSizeKw]);
 
   // Find sunrise/sunset hours for shading
   const nightHours = useMemo(() => {
@@ -34,10 +46,10 @@ export function PowerChart() {
     return { morningEnd, eveningStart };
   }, [data]);
 
-  // Current power at animation hour
-  const currentPower = useMemo(() => {
+  // Current power at animation hour (in kW)
+  const currentPowerKw = useMemo(() => {
     const hourIndex = Math.floor(animationHour);
-    return data[hourIndex]?.power || 0;
+    return data[hourIndex]?.powerKw || 0;
   }, [data, animationHour]);
 
   if (!dailyOutput) return null;
@@ -84,12 +96,14 @@ export function PowerChart() {
           />
           <YAxis
             tick={{ fontSize: 10, fill: '#6b7280' }}
-            tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
+            tickFormatter={(v) => `${v.toFixed(1)}`}
+            domain={yAxisDomain}
             axisLine={{ stroke: '#d1d5db' }}
+            label={{ value: 'kW', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#6b7280', dx: 15 }}
           />
 
           <Tooltip
-            formatter={(value: number) => [`${value.toLocaleString()} W`, 'Power']}
+            formatter={(value: number) => [`${value.toFixed(2)} kW`, 'Power']}
             labelFormatter={(hour) => `${hour}:00`}
             contentStyle={{
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -111,7 +125,7 @@ export function PowerChart() {
           {/* Current time indicator - dot */}
           <ReferenceDot
             x={Math.floor(animationHour)}
-            y={currentPower}
+            y={currentPowerKw}
             r={6}
             fill={isNight ? '#6366f1' : '#f59e0b'}
             stroke="white"
@@ -121,7 +135,7 @@ export function PowerChart() {
           {/* Power line */}
           <Line
             type="monotone"
-            dataKey="power"
+            dataKey="powerKw"
             stroke="#f59e0b"
             strokeWidth={2}
             dot={false}
@@ -132,11 +146,11 @@ export function PowerChart() {
 
       {/* Current power indicator */}
       <div className="flex justify-between items-center mt-1 px-1">
-        <span className="text-xs text-gray-500">Hour</span>
+        <span className="text-xs text-gray-500">Local Hour</span>
         <div className={`flex items-center px-2 py-0.5 rounded ${isNight ? 'bg-indigo-100' : 'bg-solar-100'}`}>
           <div className={`w-2 h-2 rounded-full mr-1 ${isNight ? 'bg-indigo-500' : 'bg-solar-500'}`} />
           <span className={`text-xs font-medium ${isNight ? 'text-indigo-700' : 'text-solar-700'}`}>
-            Now: {(currentPower / 1000).toFixed(2)} kW
+            Now: {currentPowerKw.toFixed(2)} kW
           </span>
         </div>
       </div>

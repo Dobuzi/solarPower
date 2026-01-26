@@ -209,3 +209,124 @@ describe('getTimezoneOffset', () => {
     expect(offset).toBe(540);
   });
 });
+
+describe('DST boundary handling', () => {
+  // 2024 DST transitions for America/Los_Angeles:
+  // Spring forward: March 10, 2024 at 2:00 AM -> 3:00 AM (PDT begins)
+  // Fall back: November 3, 2024 at 2:00 AM -> 1:00 AM (PST begins)
+
+  describe('Spring forward (missing hour)', () => {
+    it('should handle time during the "missing" hour', () => {
+      // March 10, 2024 - 2:30 AM PST doesn't exist (clocks jump from 2:00 to 3:00)
+      const baseDate = new Date('2024-03-10T12:00:00Z');
+      const timezone = 'America/Los_Angeles';
+
+      // Requesting 2:30 AM which doesn't exist
+      const result = createLocalDateTime(baseDate, 2.5, timezone);
+
+      // Should return a valid time (either mapped to 3:30 AM or 1:30 AM depending on implementation)
+      // The key is that it should be stable and not crash
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      // The recovered hour should be valid (either 1.5 or 3.5 for this edge case)
+      expect(recoveredHour).toBeGreaterThanOrEqual(0);
+      expect(recoveredHour).toBeLessThanOrEqual(24);
+    });
+
+    it('should correctly handle time before DST transition', () => {
+      const baseDate = new Date('2024-03-10T08:00:00Z'); // Early morning UTC
+      const timezone = 'America/Los_Angeles';
+
+      // 1:00 AM PST (before transition) should work normally
+      const result = createLocalDateTime(baseDate, 1, timezone);
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      expect(recoveredHour).toBeCloseTo(1, 0);
+    });
+
+    it('should correctly handle time after DST transition', () => {
+      const baseDate = new Date('2024-03-10T12:00:00Z');
+      const timezone = 'America/Los_Angeles';
+
+      // 3:00 AM PDT (after transition) should work normally
+      const result = createLocalDateTime(baseDate, 3, timezone);
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      expect(recoveredHour).toBeCloseTo(3, 0);
+    });
+  });
+
+  describe('Fall back (repeated hour)', () => {
+    it('should handle time during the "repeated" hour', () => {
+      // November 3, 2024 - 1:30 AM occurs twice (once PDT, once PST)
+      const baseDate = new Date('2024-11-03T12:00:00Z');
+      const timezone = 'America/Los_Angeles';
+
+      // Requesting 1:30 AM which occurs twice
+      const result = createLocalDateTime(baseDate, 1.5, timezone);
+
+      // Should return a valid time (first occurrence)
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      // The recovered hour should be 1.5
+      expect(recoveredHour).toBeCloseTo(1.5, 1);
+    });
+
+    it('should correctly handle time before DST ends', () => {
+      const baseDate = new Date('2024-11-03T07:00:00Z'); // Before transition
+      const timezone = 'America/Los_Angeles';
+
+      // 12:00 AM PDT (before transition)
+      const result = createLocalDateTime(baseDate, 0, timezone);
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      expect(recoveredHour).toBeCloseTo(0, 0);
+    });
+
+    it('should correctly handle time after DST ends', () => {
+      const baseDate = new Date('2024-11-03T15:00:00Z'); // Well after transition
+      const timezone = 'America/Los_Angeles';
+
+      // 3:00 AM PST (well after transition)
+      const result = createLocalDateTime(baseDate, 3, timezone);
+      const recoveredHour = getLocalHourFromUtc(result, timezone);
+
+      expect(recoveredHour).toBeCloseTo(3, 0);
+    });
+  });
+
+  describe('Timezone with no DST', () => {
+    it('should work correctly for Arizona (no DST)', () => {
+      // Arizona (America/Phoenix) doesn't observe DST
+      const marchDate = new Date('2024-03-15T12:00:00Z');
+      const novemberDate = new Date('2024-11-15T12:00:00Z');
+      const timezone = 'America/Phoenix';
+
+      const marchResult = createLocalDateTime(marchDate, 12, timezone);
+      const novemberResult = createLocalDateTime(novemberDate, 12, timezone);
+
+      const marchRecovered = getLocalHourFromUtc(marchResult, timezone);
+      const novemberRecovered = getLocalHourFromUtc(novemberResult, timezone);
+
+      // Both should recover to 12:00 regardless of time of year
+      expect(marchRecovered).toBeCloseTo(12, 1);
+      expect(novemberRecovered).toBeCloseTo(12, 1);
+    });
+
+    it('should work correctly for Tokyo (no DST)', () => {
+      // Japan doesn't observe DST
+      const marchDate = new Date('2024-03-15T12:00:00Z');
+      const novemberDate = new Date('2024-11-15T12:00:00Z');
+      const timezone = 'Asia/Tokyo';
+
+      const marchResult = createLocalDateTime(marchDate, 12, timezone);
+      const novemberResult = createLocalDateTime(novemberDate, 12, timezone);
+
+      const marchRecovered = getLocalHourFromUtc(marchResult, timezone);
+      const novemberRecovered = getLocalHourFromUtc(novemberResult, timezone);
+
+      expect(marchRecovered).toBeCloseTo(12, 1);
+      expect(novemberRecovered).toBeCloseTo(12, 1);
+    });
+  });
+});

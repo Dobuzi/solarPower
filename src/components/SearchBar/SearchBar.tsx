@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useGeocoding } from '../../hooks/useGeocoding';
 import { useSimulatorStore } from '../../store/simulatorStore';
 import { Location } from '../../core/types';
+import { SearchDropdown } from './SearchDropdown';
 
 export function SearchBar() {
   const [query, setQuery] = useState('');
@@ -37,6 +38,11 @@ export function SearchBar() {
     inputRef.current?.blur();
   }, [setLocation, setOptimalOrientation]);
 
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -47,21 +53,36 @@ export function SearchBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close dropdown on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        inputRef.current?.blur();
+      }
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
   return (
     <div ref={containerRef} className="relative">
-      <div className="flex items-center bg-white rounded-lg shadow-lg overflow-hidden">
+      <div
+        ref={inputRef as unknown as React.RefObject<HTMLDivElement>}
+        className="flex items-center bg-white rounded-lg shadow-lg"
+      >
         <div className="pl-4 text-gray-400">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
         <input
-          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
+          onFocus={() => query.trim() && results.length > 0 && setIsOpen(true)}
           placeholder="Search location..."
-          className="w-64 px-4 py-3 text-gray-800 focus:outline-none"
+          className="w-64 px-4 py-3 text-gray-800 focus:outline-none bg-transparent"
         />
         {isLoading && (
           <div className="pr-4">
@@ -70,24 +91,17 @@ export function SearchBar() {
         )}
       </div>
 
-      {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg overflow-hidden z-50">
-          {results.map((loc, index) => (
-            <button
-              key={index}
-              onClick={() => handleSelect(loc)}
-              className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
-            >
-              <p className="text-sm text-gray-800 truncate">{loc.address}</p>
-              <p className="text-xs text-gray-500">
-                {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)}
-              </p>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Portal-based dropdown for proper z-index */}
+      <SearchDropdown
+        results={results}
+        isOpen={isOpen}
+        onSelect={handleSelect}
+        onClose={handleClose}
+        anchorRef={containerRef}
+      />
 
-      <div className="mt-2 text-sm text-white/90 bg-black/30 px-3 py-1 rounded-lg inline-block">
+      {/* Current location display */}
+      <div className="mt-2 text-sm text-white/90 bg-black/30 px-3 py-1 rounded-lg inline-block max-w-full truncate">
         {location.address}
       </div>
     </div>

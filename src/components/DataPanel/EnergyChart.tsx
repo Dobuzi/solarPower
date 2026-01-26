@@ -12,19 +12,33 @@ import {
   ReferenceArea,
 } from 'recharts';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
-import { useSimulatorStore } from '../../store/simulatorStore';
+import { useSimulatorStore, selectSystemSize } from '../../store/simulatorStore';
 
 export function EnergyChart() {
   const { cumulativeEnergyData, dailyOutput, isNight, hourlyPowerData } = useSolarCalculation();
   const { animationHour } = useSimulatorStore();
+  const systemSizeKw = useSimulatorStore(selectSystemSize);
 
+  // Convert energy data to kWh for cleaner display
   const data = useMemo(() => {
     return cumulativeEnergyData.map((d) => ({
       hour: d.hour,
-      energy: Math.round(d.energy),
+      energyKwh: d.energy / 1000, // Convert Wh to kWh
       label: `${d.hour}:00`,
     }));
   }, [cumulativeEnergyData]);
+
+  // Calculate Y-axis domain based on system capacity and daily energy
+  const yAxisDomain = useMemo(() => {
+    const maxEnergyKwh = Math.max(...data.map(d => d.energyKwh), 0);
+    // Estimate max possible daily energy (system kW × ~6 peak sun hours)
+    const theoreticalMaxKwh = systemSizeKw * 8;
+    // yMax = max(actual * 1.1, theoretical * 0.5) for reasonable scale
+    const maxValue = Math.max(maxEnergyKwh * 1.1, theoreticalMaxKwh * 0.5);
+    // Round up to nearest 1 kWh for cleaner axis
+    const yMax = Math.ceil(maxValue);
+    return [0, Math.max(yMax, 1)]; // At least 1 kWh max
+  }, [data, systemSizeKw]);
 
   // Find sunrise/sunset hours for shading
   const nightHours = useMemo(() => {
@@ -34,10 +48,10 @@ export function EnergyChart() {
     return { morningEnd: morningEnd > 0 ? morningEnd : 0, eveningStart: eveningStart < 24 ? eveningStart : 24 };
   }, [hourlyPowerData]);
 
-  // Current cumulative energy at animation hour
-  const currentEnergy = useMemo(() => {
+  // Current cumulative energy at animation hour (in kWh)
+  const currentEnergyKwh = useMemo(() => {
     const hourIndex = Math.floor(animationHour);
-    return data[hourIndex]?.energy || 0;
+    return data[hourIndex]?.energyKwh || 0;
   }, [data, animationHour]);
 
   if (!dailyOutput) return null;
@@ -84,12 +98,14 @@ export function EnergyChart() {
           />
           <YAxis
             tick={{ fontSize: 10, fill: '#6b7280' }}
-            tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
+            tickFormatter={(v) => `${v.toFixed(1)}`}
+            domain={yAxisDomain}
             axisLine={{ stroke: '#d1d5db' }}
+            label={{ value: 'kWh', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#6b7280', dx: 15 }}
           />
 
           <Tooltip
-            formatter={(value: number) => [`${(value / 1000).toFixed(2)} kWh`, 'Cumulative Energy']}
+            formatter={(value: number) => [`${value.toFixed(2)} kWh`, 'Cumulative Energy']}
             labelFormatter={(hour) => `${hour}:00`}
             contentStyle={{
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -111,7 +127,7 @@ export function EnergyChart() {
           {/* Current time indicator - dot */}
           <ReferenceDot
             x={Math.floor(animationHour)}
-            y={currentEnergy}
+            y={currentEnergyKwh}
             r={6}
             fill={isNight ? '#6366f1' : '#10b981'}
             stroke="white"
@@ -121,7 +137,7 @@ export function EnergyChart() {
           {/* Energy area */}
           <Area
             type="monotone"
-            dataKey="energy"
+            dataKey="energyKwh"
             stroke="#10b981"
             strokeWidth={2}
             fill="url(#energyGradient)"
@@ -131,11 +147,11 @@ export function EnergyChart() {
 
       {/* Current energy indicator */}
       <div className="flex justify-between items-center mt-1 px-1">
-        <span className="text-xs text-gray-500">Hour</span>
+        <span className="text-xs text-gray-500">Local Hour</span>
         <div className={`flex items-center px-2 py-0.5 rounded ${isNight ? 'bg-indigo-100' : 'bg-emerald-100'}`}>
           <div className={`w-2 h-2 rounded-full mr-1 ${isNight ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
           <span className={`text-xs font-medium ${isNight ? 'text-indigo-700' : 'text-emerald-700'}`}>
-            Cumulative: {(currentEnergy / 1000).toFixed(2)} kWh
+            Cumulative: {currentEnergyKwh.toFixed(2)} kWh
           </span>
         </div>
       </div>

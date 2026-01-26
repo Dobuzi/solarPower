@@ -136,6 +136,10 @@ export function isValidTimezone(timezone: string): boolean {
  * Create a UTC Date for a specific local hour in a timezone.
  * This is the SINGLE SOURCE OF TRUTH for simulation time.
  *
+ * DST-safe: Uses iterative offset correction to handle DST transitions.
+ * - Spring forward (missing hour): Maps to the next valid time
+ * - Fall back (repeated hour): Maps to the first occurrence
+ *
  * @param baseDate - Reference date (used to determine Y/M/D in target timezone)
  * @param localHour - Local hour (0-23.99) in the target timezone
  * @param timezone - IANA timezone string
@@ -167,14 +171,23 @@ export function createLocalDateTime(
   // Date.UTC is timezone-independent (always returns UTC milliseconds)
   const naiveUtcMs = Date.UTC(year, month, day, hours, minutes, 0, 0);
 
-  // Get the timezone offset for this approximate time
-  // Offset is in minutes: positive = east of UTC, negative = west
-  const offset = getTimezoneOffset(timezone, new Date(naiveUtcMs));
+  // Iterative offset correction for DST safety
+  // The offset at naiveUtcMs might not match the offset at the actual target time
+  // We iterate until the offset stabilizes (usually 1-2 iterations)
+  let utcMs = naiveUtcMs;
+  let prevOffset = NaN;
 
-  // Convert local to UTC: UTC = Local - Offset
-  // naiveUtcMs encodes "local wall clock time" as UTC milliseconds
-  // So we subtract offset to get actual UTC
-  const utcMs = naiveUtcMs - offset * 60000;
+  for (let i = 0; i < 3; i++) {
+    // Get offset at current UTC estimate
+    const offset = getTimezoneOffset(timezone, new Date(utcMs));
+
+    // If offset hasn't changed, we've converged
+    if (offset === prevOffset) break;
+
+    // Calculate new UTC: UTC = Local - Offset
+    utcMs = naiveUtcMs - offset * 60000;
+    prevOffset = offset;
+  }
 
   return new Date(utcMs);
 }
