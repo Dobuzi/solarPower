@@ -1,7 +1,21 @@
+/**
+ * Data Panel Component
+ *
+ * Displays solar simulation outputs with progressive disclosure.
+ * Essential metrics always visible, advanced metrics collapsible.
+ *
+ * Priority structure:
+ * 1. Current Time + Instant Power + Daily Energy (always visible)
+ * 2. Power/Energy Charts (collapsible on small screens)
+ * 3. Sun Times + Basic Stats (always visible)
+ * 4. Advanced Metrics (collapsible)
+ */
+
 import { useState } from 'react';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
 import { PowerChart } from './PowerChart';
 import { EnergyChart } from './EnergyChart';
+import { useCompactMode } from '../../hooks/usePanelState';
 
 // Tooltip component
 function Tooltip({ text }: { text: string }) {
@@ -20,17 +34,25 @@ function Tooltip({ text }: { text: string }) {
 
 export function DataPanel() {
   const { summary, solarPosition, poaIrradiance, irradiance, currentLosses, cellTemperature, isNight, currentTimeLocal, location } = useSolarCalculation();
+  const [showCharts, setShowCharts] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const isCompact = useCompactMode();
 
   if (!summary || !solarPosition) return null;
 
+  // Dynamic sizing based on compact mode
+  const panelWidth = isCompact ? 'w-80' : 'w-96';
+  const padding = isCompact ? 'p-3' : 'p-5';
+  const marginBottom = isCompact ? 'mb-3' : 'mb-4';
+
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-5 w-96 max-h-[calc(100vh-100px)] overflow-y-auto">
+    <div className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-xl ${padding} ${panelWidth} max-h-[calc(100vh-180px)] overflow-y-auto`}>
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Output Data</h2>
 
+      {/* PRIORITY 1: Essential Metrics - Always Visible */}
       {/* Night Mode Indicator */}
       {isNight && (
-        <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center">
+        <div className={`p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center ${marginBottom}`}>
           <svg className="w-5 h-5 text-indigo-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
           </svg>
@@ -41,8 +63,8 @@ export function DataPanel() {
         </div>
       )}
 
-      {/* Current Time & Power - Primary Metrics */}
-      <div className="mb-4">
+      {/* Current Time & Key Metrics */}
+      <div className={marginBottom}>
         <div className="flex items-center justify-between mb-2">
           <div>
             <span className="text-sm text-gray-500">Simulation Time</span>
@@ -68,26 +90,49 @@ export function DataPanel() {
         </div>
       </div>
 
-      {/* Power Chart */}
-      <div className="mb-4">
-        <div className="flex items-center mb-2">
-          <h3 className="text-sm font-medium text-gray-700">Power Output</h3>
-          <Tooltip text="Hourly AC power output throughout the day" />
-        </div>
-        <PowerChart />
+      {/* PRIORITY 2: Charts - Collapsible on compact mode */}
+      <div className={marginBottom}>
+        <button
+          onClick={() => setShowCharts(!showCharts)}
+          className="w-full flex items-center justify-between py-2 text-sm text-gray-600 hover:text-gray-800"
+        >
+          <span className="font-medium">Power & Energy Charts</span>
+          <svg
+            className={`w-4 h-4 transition-transform ${showCharts ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showCharts && (
+          <div className="space-y-4 mt-2">
+            {/* Power Chart */}
+            <div>
+              <div className="flex items-center mb-2">
+                <h3 className="text-sm font-medium text-gray-700">Power Output</h3>
+                <Tooltip text="Hourly AC power output throughout the day" />
+              </div>
+              <PowerChart />
+            </div>
+
+            {/* Energy Chart */}
+            <div>
+              <div className="flex items-center mb-2">
+                <h3 className="text-sm font-medium text-gray-700">Cumulative Energy</h3>
+                <Tooltip text="Running total of energy generated" />
+              </div>
+              <EnergyChart />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Energy Chart */}
-      <div className="mb-4">
-        <div className="flex items-center mb-2">
-          <h3 className="text-sm font-medium text-gray-700">Cumulative Energy</h3>
-          <Tooltip text="Running total of energy generated" />
-        </div>
-        <EnergyChart />
-      </div>
-
+      {/* PRIORITY 3: Sun Times & Basic Stats - Always Visible */}
       {/* Sun Times */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className={`grid grid-cols-3 gap-2 ${marginBottom}`}>
         <div className="bg-gray-50 rounded-lg p-2 text-center">
           <span className="text-xs text-gray-500">Sunrise</span>
           <p className="text-sm font-semibold text-gray-800">{summary.sunriseLocal}</p>
@@ -103,7 +148,7 @@ export function DataPanel() {
       </div>
 
       {/* Basic Statistics */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className={`grid grid-cols-2 gap-2 ${marginBottom}`}>
         <div className="bg-gray-50 rounded-lg p-2">
           <span className="text-xs text-gray-500">Daylight Hours</span>
           <p className="text-sm font-semibold text-gray-800">{summary.daylightHours.toFixed(1)}h</p>
@@ -115,7 +160,7 @@ export function DataPanel() {
       </div>
 
       {/* Energy Projections */}
-      <div className="border-t border-gray-200 pt-4 mb-4">
+      <div className={`border-t border-gray-200 pt-3 ${marginBottom}`}>
         <div className="flex items-center mb-2">
           <h3 className="text-sm font-medium text-gray-700">Energy Projections</h3>
           <Tooltip text="Estimates based on today's conditions. Actual values vary with weather." />
@@ -140,7 +185,7 @@ export function DataPanel() {
       </div>
 
       {/* Savings */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className={`grid grid-cols-2 gap-2 ${marginBottom}`}>
         <div className="bg-blue-50 rounded-lg p-2 text-center">
           <span className="text-xs text-blue-600">Yearly Savings</span>
           <p className="text-lg font-bold text-blue-700">${summary.yearlySavings.toFixed(0)}</p>
@@ -154,7 +199,7 @@ export function DataPanel() {
         </div>
       </div>
 
-      {/* Advanced Section Toggle */}
+      {/* PRIORITY 4: Advanced Metrics - Collapsible */}
       <button
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="w-full flex items-center justify-between py-2 text-sm text-gray-600 hover:text-gray-800 border-t border-gray-200"
@@ -170,7 +215,6 @@ export function DataPanel() {
         </svg>
       </button>
 
-      {/* Advanced Metrics (Collapsible) */}
       {showAdvanced && (
         <div className="pt-3 space-y-4">
           {/* Solar Position */}

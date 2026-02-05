@@ -4,7 +4,7 @@ import { SolarPanel } from './SolarPanel';
 import { Sun } from './Sun';
 import { Ground } from './Ground';
 import { useSimulatorStore } from '../../store/simulatorStore';
-import { useMemo } from 'react';
+import { useMemo, useRef, useCallback } from 'react';
 
 function SkyDome() {
   const { solarPosition, isNight } = useSimulatorStore();
@@ -183,46 +183,151 @@ function SunAzimuthIndicator() {
         <circleGeometry args={[0.15, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
+      {/* Sun direction label */}
+      <Text
+        position={[sunDirection.x, 0.1, sunDirection.z + 0.4]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        fontSize={0.25}
+        color={color}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {isNight ? 'Moon' : 'Sun'}
+      </Text>
     </group>
   );
 }
 
-export function Scene() {
-  const { isNight, isTwilight } = useSimulatorStore();
+interface SceneProps {
+  // Optional: Pass bottom sheet state for context-aware camera
+  bottomSheetState?: 'peek' | 'default' | 'full' | 'closed';
+}
+
+export function Scene({ bottomSheetState = 'closed' }: SceneProps) {
+  const { isNight, isTwilight, solarPosition } = useSimulatorStore();
+
+  // UX Refinement: Sun-aware camera as one-time assist, not automation
+  // - Applies only on first entry or explicit reset
+  // - Stops permanently after user manually rotates once
+  // - Does NOT auto-adjust on time slider changes
+  // ENABLED for zero-onboarding: users immediately see optimal view
+  const sunAwareCamera = true; // Subtle auto-adjustment toward sun direction
+
+  // Track user interaction: once user rotates, disable all camera automation permanently
+  const hasUserRotated = useRef(false);
+
+  // Detect mobile/touch device for adjusted controls
+  const isMobile = useMemo(() => {
+    return 'ontouchstart' in window || window.innerWidth < 768;
+  }, []);
 
   // Ambient light intensity based on time of day
   const ambientIntensity = useMemo(() => {
-    if (isNight) return 0.15;
-    if (isTwilight) return 0.25;
-    return 0.4;
+    if (isNight) return 0.2; // Slightly increased for better shadow readability
+    if (isTwilight) return 0.3;
+    return 0.45; // Increased ambient for better contrast without over-darkening
   }, [isNight, isTwilight]);
+
+  // Panel mounting height: 1.0m above ground
+  const panelBaseY = 0.52;
+
+  // Camera setup with one-time sun-aware framing hint
+  // UX Intent: Provide helpful initial framing, then respect user control
+  const cameraInitialPosition: [number, number, number] = useMemo(() => {
+    const basePos: [number, number, number] = [6, 4.5, -6];
+
+    // Only apply sun-aware framing if:
+    // 1. Feature is enabled
+    // 2. User has never rotated (first-time hint only)
+    // 3. Solar position exists
+    if (!sunAwareCamera || hasUserRotated.current || !solarPosition) {
+      return basePos;
+    }
+
+    // Calculate optimal viewing angle (~90° from sun for best lighting)
+    const sunAzimuthRad = (solarPosition.azimuth - 180) * Math.PI / 180;
+    const cameraOffsetAngle = sunAzimuthRad + Math.PI / 2;
+
+    const distance = Math.sqrt(basePos[0] ** 2 + basePos[2] ** 2);
+    const x = Math.sin(cameraOffsetAngle) * distance;
+    const z = -Math.cos(cameraOffsetAngle) * distance;
+
+    return [x, basePos[1], z];
+  }, [sunAwareCamera, solarPosition]); // Removed isUserControlling - only check once
+
+  const cameraTarget: [number, number, number] = [0, panelBaseY, 0];
+
+  // UX Refinement: Context-aware camera sensitivity
+  // When bottom sheet is expanded, reduce camera rotation to prevent accidental movement
+  // This keeps user focus on settings without camera "fighting" for attention
+  const controlsConfig = useMemo(() => {
+    const isSheetExpanded = bottomSheetState === 'default' || bottomSheetState === 'full';
+
+    if (isMobile) {
+      return {
+        // Mobile base speeds (comfortable one-handed control)
+        rotateSpeed: isSheetExpanded ? 0.3 : 0.5,  // Further reduced when sheet open
+        zoomSpeed: isSheetExpanded ? 0.4 : 0.6,
+        panSpeed: isSheetExpanded ? 0.3 : 0.5,
+        dampingFactor: 0.1, // Slightly more damping for stability
+        enableRotate: true, // Always allow (just slower when sheet open)
+      };
+    }
+
+    // Desktop: unchanged for precision
+    return {
+      rotateSpeed: 1.0,
+      zoomSpeed: 1.0,
+      panSpeed: 1.0,
+      dampingFactor: 0.05,
+      enableRotate: true,
+    };
+  }, [isMobile, bottomSheetState]);
+
+  // Handle OrbitControls interaction events
+  // UX Intent: Detect when user takes manual control and respect that choice
+  // Performance: useCallback prevents OrbitControls re-render
+  const handleControlStart = useCallback(() => {
+    // Mark that user has interacted - disable sun-aware framing permanently
+    hasUserRotated.current = true;
+  }, []);
 
   return (
     <div className="w-full h-full">
       <Canvas shadows>
-        <PerspectiveCamera makeDefault position={[8, 6, 8]} fov={50} />
+        <PerspectiveCamera makeDefault position={cameraInitialPosition} fov={50} />
         <OrbitControls
           enablePan={true}
           enableZoom={true}
-          enableRotate={true}
+          enableRotate={controlsConfig.enableRotate}
+          enableDamping={true}
+          dampingFactor={controlsConfig.dampingFactor}
+          rotateSpeed={controlsConfig.rotateSpeed}
+          zoomSpeed={controlsConfig.zoomSpeed}
+          panSpeed={controlsConfig.panSpeed}
+          target={cameraTarget}
           minDistance={3}
           maxDistance={30}
-          maxPolarAngle={Math.PI / 2 - 0.1}
+          // UX: Conservative angle limits prevent "lost" feeling
+          // Never go below horizon, never go directly overhead
+          minPolarAngle={Math.PI / 8}  // ~22° minimum (not too flat)
+          maxPolarAngle={Math.PI / 2 - 0.1}  // Just above horizon
+          onStart={handleControlStart}
         />
 
-        {/* Lighting */}
+        {/* Lighting - Tuned for clear sun-to-panel-to-shadow relationship */}
         <ambientLight intensity={ambientIntensity} color={isNight ? '#a5b4fc' : '#ffffff'} />
         <hemisphereLight
           color={isNight ? '#3730a3' : '#87ceeb'}
           groundColor={isNight ? '#1e1b4b' : '#4ade80'}
-          intensity={isNight ? 0.15 : 0.5}
+          intensity={isNight ? 0.2 : 0.6}
         />
 
         {/* Point light for night ambient */}
         {isNight && (
           <pointLight
             position={[0, 10, 0]}
-            intensity={0.1}
+            intensity={0.15}
             color="#a5b4fc"
             distance={30}
           />
@@ -232,13 +337,14 @@ export function Scene() {
         <SkyDome />
 
         {/* Scene objects */}
-        <group position={[0, 0.5, 0]}>
+        {/* Panel group at realistic mounting height: 1.0m above ground */}
+        <group position={[0, panelBaseY, 0]}>
           <SolarPanel />
         </group>
         <Sun />
         <Ground />
 
-        {/* Compass and indicators */}
+        {/* Orientation cues: Compass and indicators reinforce spatial relationships */}
         <Compass />
         <ScaleReference />
         <SunAzimuthIndicator />

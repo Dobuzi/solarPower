@@ -141,8 +141,19 @@ function DesktopLayout({
 }
 
 // Mobile Layout Component
-function MobileLayout({ viewMode, setViewMode }: { viewMode: ViewMode; setViewMode: (mode: ViewMode) => void }) {
-  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+function MobileLayout({
+  viewMode,
+  setViewMode,
+  bottomSheetOpen,
+  setBottomSheetOpen,
+  onSnapPointChange,
+}: {
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
+  bottomSheetOpen: boolean;
+  setBottomSheetOpen: (open: boolean) => void;
+  onSnapPointChange: (snapPoint: 'peek' | 'default' | 'full') => void;
+}) {
 
   return (
     <>
@@ -164,17 +175,19 @@ function MobileLayout({ viewMode, setViewMode }: { viewMode: ViewMode; setViewMo
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('map')}
-                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
                   viewMode === 'map' ? 'bg-white shadow text-solar-600' : 'text-gray-500'
                 }`}
+                style={{ minHeight: '44px', minWidth: '44px' }}
               >
                 Map
               </button>
               <button
                 onClick={() => setViewMode('3d')}
-                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
                   viewMode === '3d' ? 'bg-white shadow text-solar-600' : 'text-gray-500'
                 }`}
+                style={{ minHeight: '44px', minWidth: '44px' }}
               >
                 3D
               </button>
@@ -189,6 +202,7 @@ function MobileLayout({ viewMode, setViewMode }: { viewMode: ViewMode; setViewMo
       <MobileBottomSheet
         isOpen={bottomSheetOpen}
         onToggle={() => setBottomSheetOpen(!bottomSheetOpen)}
+        onSnapPointChange={onSnapPointChange}
       />
     </>
   );
@@ -199,6 +213,22 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>(isMobile ? 'map' : 'split');
   const mapRef = useRef<L.Map | null>(null);
   const { visibility } = usePanelState(isMobile);
+
+  // Mobile bottom sheet state
+  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [bottomSheetSnapPoint, setBottomSheetSnapPoint] = useState<'peek' | 'default' | 'full' | 'closed'>('closed');
+
+  // Handle bottom sheet snap point changes for context-aware 3D camera
+  const handleSnapPointChange = useCallback((snapPoint: 'peek' | 'default' | 'full') => {
+    setBottomSheetSnapPoint(snapPoint);
+  }, []);
+
+  // Update snap point to 'closed' when sheet closes
+  useEffect(() => {
+    if (!bottomSheetOpen) {
+      setBottomSheetSnapPoint('closed');
+    }
+  }, [bottomSheetOpen]);
 
   // Switch to non-split mode on mobile
   useEffect(() => {
@@ -231,7 +261,7 @@ function App() {
         }}
       >
         {viewMode === 'map' && <MapCanvas onMapReady={handleMapReady} />}
-        {viewMode === '3d' && <Scene />}
+        {viewMode === '3d' && <Scene bottomSheetState={isMobile ? bottomSheetSnapPoint : undefined} />}
         {viewMode === 'split' && !isMobile && (
           <div className="flex h-full">
             <div className="w-1/2 h-full border-r border-gray-300">
@@ -246,7 +276,13 @@ function App() {
 
       {/* Responsive Layout */}
       {isMobile ? (
-        <MobileLayout viewMode={viewMode} setViewMode={setViewMode} />
+        <MobileLayout
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          bottomSheetOpen={bottomSheetOpen}
+          setBottomSheetOpen={setBottomSheetOpen}
+          onSnapPointChange={handleSnapPointChange}
+        />
       ) : (
         <DesktopLayout viewMode={viewMode} setViewMode={setViewMode} />
       )}

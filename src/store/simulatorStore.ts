@@ -89,6 +89,7 @@ interface SimulatorStore {
   // Actions
   recalculate: () => void;
   setOptimalOrientation: () => void;
+  resetConfig: () => void;
 
   // Caching
   lastCalculationKey: string;
@@ -346,6 +347,26 @@ export const useSimulatorStore = create<SimulatorStore>((set, get) => ({
         tilt: calculateOptimalTilt(location.latitude),
         azimuth: calculateOptimalAzimuth(location.latitude),
       },
+    });
+    get().recalculate();
+  },
+
+  resetConfig: () => {
+    const { location } = get();
+    const defaultPreset = getDefaultPreset();
+    set({
+      panelPresetId: defaultPreset.id,
+      panelConfig: defaultPreset.config,
+      panelCount: 10,
+      orientation: {
+        tilt: calculateOptimalTilt(location.latitude),
+        azimuth: calculateOptimalAzimuth(location.latitude),
+      },
+      ambientTemp: 25,
+      albedo: 0.2,
+      linkeTurbidity: 3.0,
+      systemLosses: DEFAULT_SYSTEM_LOSSES,
+      inverterConfig: DEFAULT_INVERTER_CONFIG,
     });
     get().recalculate();
   },

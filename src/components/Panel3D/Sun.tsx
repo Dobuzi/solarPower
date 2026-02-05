@@ -1,12 +1,14 @@
-import { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useSimulatorStore } from '../../store/simulatorStore';
 
 export function Sun() {
-  const sunRef = useRef<THREE.Group>(null);
-  const lightRef = useRef<THREE.DirectionalLight>(null);
   const { solarPosition, isNight } = useSimulatorStore();
+
+  // Performance: Detect mobile for reduced shadow resolution
+  const isMobile = useMemo(() => {
+    return 'ontouchstart' in window || window.innerWidth < 768;
+  }, []);
 
   const sunPosition = useMemo(() => {
     if (!solarPosition) {
@@ -52,15 +54,7 @@ export function Sun() {
     return '#fcd34d';
   }, [solarPosition]);
 
-  useFrame(() => {
-    if (sunRef.current) {
-      sunRef.current.position.copy(sunPosition);
-    }
-    if (lightRef.current) {
-      lightRef.current.position.copy(sunPosition);
-      lightRef.current.intensity = Math.max(0, intensity * 2);
-    }
-  });
+  // Performance: Removed useFrame - position/intensity updates via props only (on change)
 
   // Show sun indicator even when below horizon (but not visible sphere)
   const showSunSphere = solarPosition && solarPosition.elevation > -18;
@@ -70,7 +64,7 @@ export function Sun() {
     <>
       {/* Sun sphere - visible during day and twilight, faded when below horizon */}
       {showSunSphere && (
-        <group ref={sunRef} position={sunPosition}>
+        <group position={sunPosition}>
           {/* Sun sphere */}
           <mesh>
             <sphereGeometry args={[0.8, 32, 32]} />
@@ -108,20 +102,22 @@ export function Sun() {
         </group>
       )}
 
-      {/* Directional light from sun */}
+      {/* Directional light from sun - tuned for crisp shadows */}
+      {/* Performance: 1024 on mobile, 2048 on desktop */}
       <directionalLight
-        ref={lightRef}
         position={sunPosition}
-        intensity={intensity * 2}
+        intensity={intensity * 2.5} // Increased for better shadow contrast
         color="#fff5e6"
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={isMobile ? 1024 : 2048}
+        shadow-mapSize-height={isMobile ? 1024 : 2048}
         shadow-camera-far={50}
         shadow-camera-left={-10}
         shadow-camera-right={10}
         shadow-camera-top={10}
         shadow-camera-bottom={-10}
+        shadow-bias={-0.0001} // Reduced shadow acne
+        shadow-normalBias={0.02} // Prevent peter-panning
       />
 
       {/* Sun path indicator line - shows where sun travels */}
