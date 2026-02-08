@@ -1,9 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useMediaQuery, useIsMobile, useIsTablet, usePrefersReducedMotion } from './useMediaQuery';
+import { getMediaQueryMatch, useMediaQuery, useIsMobile, useIsTablet, usePrefersReducedMotion } from './useMediaQuery';
 
 
 describe('useMediaQuery', () => {
+  it('returns false when no window is available', () => {
+    expect(getMediaQueryMatch('(max-width: 600px)', undefined)).toBe(false);
+  });
+
+  it('returns match result from provided window', () => {
+    const mockWindow = {
+      matchMedia: (query: string) => ({ matches: query.includes('max-width: 600px') }),
+    } as Window;
+
+    expect(getMediaQueryMatch('(max-width: 600px)', mockWindow)).toBe(true);
+    expect(getMediaQueryMatch('(min-width: 1200px)', mockWindow)).toBe(false);
+  });
+
   it('should update when media query changes', () => {
     const listeners: Array<(e: MediaQueryListEvent) => void> = [];
 

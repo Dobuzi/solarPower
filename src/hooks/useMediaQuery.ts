@@ -3,13 +3,16 @@ import { useState, useEffect } from 'react';
 /**
  * Hook to detect if viewport matches a media query
  */
+export function getMediaQueryMatch(query: string, targetWindow?: Window): boolean {
+  if (!targetWindow) return false;
+  return targetWindow.matchMedia(query).matches;
+}
+
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia(query).matches;
-  });
+  const [matches, setMatches] = useState(() => getMediaQueryMatch(query, typeof window === 'undefined' ? undefined : window));
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const mediaQuery = window.matchMedia(query);
     const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
 
