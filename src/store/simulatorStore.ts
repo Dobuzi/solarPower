@@ -239,6 +239,29 @@ export const useSimulatorStore = create<SimulatorStore>((set, get) => ({
       inverterConfig,
     } = state;
 
+    const calculationKey = JSON.stringify({
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        elevation: location.elevation || 0,
+        timezone: location.timezone,
+      },
+      date: date.toISOString().split('T')[0],
+      animationHour,
+      panelConfig,
+      orientation,
+      panelCount,
+      ambientTemp,
+      albedo,
+      linkeTurbidity,
+      systemLosses,
+      inverterConfig,
+    });
+
+    if (calculationKey === state.lastCalculationKey) {
+      return;
+    }
+
     // Create UTC date from local animation hour
     const currentTimeUTC = createLocalDateTime(date, animationHour, location.timezone);
 
@@ -337,6 +360,7 @@ export const useSimulatorStore = create<SimulatorStore>((set, get) => ({
       isOptimal,
       currentTimeUTC,
       currentTimeLocal,
+      lastCalculationKey: calculationKey,
     });
   },
 

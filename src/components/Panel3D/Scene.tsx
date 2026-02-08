@@ -4,8 +4,9 @@ import { SolarPanel } from './SolarPanel';
 import { Sun } from './Sun';
 import { Ground } from './Ground';
 import { useSimulatorStore } from '../../store/simulatorStore';
-import { useMemo, useRef, useCallback, useEffect } from 'react';
+import { useMemo, useRef, useCallback, useEffect, useState } from 'react';
 import * as THREE from 'three';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 // Performance: Scene invalidation controller
 // Triggers re-render only when necessary (render-on-demand architecture)
@@ -260,10 +261,9 @@ export function Scene({ bottomSheetState = 'closed' }: SceneProps) {
   // Track user interaction: once user rotates, disable all camera automation permanently
   const hasUserRotated = useRef(false);
 
-  // Detect mobile/touch device for adjusted controls
-  const isMobile = useMemo(() => {
-    return 'ontouchstart' in window || window.innerWidth < 768;
-  }, []);
+  const isMobile = useIsMobile();
+  const [lowPower, setLowPower] = useState(isMobile);
+  const effectiveLowPower = lowPower || isMobile;
 
   // Ambient light intensity based on time of day
   const ambientIntensity = useMemo(() => {
@@ -337,20 +337,36 @@ export function Scene({ bottomSheetState = 'closed' }: SceneProps) {
   }, []);
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
+      <div className="absolute top-3 right-3 z-10 pointer-events-auto">
+        <button
+          onClick={() => setLowPower((prev) => !prev)}
+          className={`px-3 py-2 rounded-lg text-xs font-medium shadow ${
+            effectiveLowPower
+              ? 'bg-gray-900 text-white'
+              : 'bg-white text-gray-700'
+          }`}
+          style={{ minHeight: '36px' }}
+          title="Toggle low power rendering"
+        >
+          Low power: {effectiveLowPower ? 'On' : 'Off'}
+        </button>
+      </div>
       {/* Performance: frameloop="demand" = render only when needed, not continuously */}
       {/* Performance: dpr capped at 1.5 for mobile, PCFSoftShadowMap for speed */}
       <Canvas
-        shadows
+        shadows={!effectiveLowPower}
         frameloop="demand"
-        dpr={Math.min(isMobile ? 1.5 : 2, window.devicePixelRatio)}
+        dpr={effectiveLowPower ? 1 : Math.min(isMobile ? 1.5 : 2, window.devicePixelRatio)}
         gl={{
-          antialias: !isMobile, // Disable AA on mobile for performance
+          antialias: !effectiveLowPower, // Disable AA on low power for performance
           powerPreference: 'high-performance',
         }}
         onCreated={({ gl }) => {
           // Performance: Use fastest shadow mode (PCF = faster than VSM)
-          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          if (!effectiveLowPower) {
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          }
         }}
       >
         {/* Performance: Invalidator triggers render on state changes */}

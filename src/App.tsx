@@ -1,7 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import L from 'leaflet';
-import { MapCanvas } from './components/Map';
-import { Scene } from './components/Panel3D';
 import { Controls } from './components/Controls';
 import { DataPanel } from './components/DataPanel';
 import { TimeSlider } from './components/TimeSlider';
@@ -14,6 +12,17 @@ import { usePanelState } from './hooks/usePanelState';
 import { useSolarCalculation } from './hooks/useSolarCalculation';
 
 type ViewMode = 'map' | '3d' | 'split';
+
+const LazyMapCanvas = lazy(() => import('./components/Map/MapCanvas').then((mod) => ({ default: mod.MapCanvas })));
+const LazyScene = lazy(() => import('./components/Panel3D/Scene').then((mod) => ({ default: mod.Scene })));
+
+function ViewSkeleton({ label }: { label: string }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+      <div className="text-sm text-gray-400 animate-pulse">{label}</div>
+    </div>
+  );
+}
 
 // Debug panel toggle - only in dev mode
 function DebugPanelToggle() {
@@ -279,15 +288,27 @@ function App() {
           bottom: isMobile ? '60px' : 0,
         }}
       >
-        {viewMode === 'map' && <MapCanvas onMapReady={handleMapReady} />}
-        {viewMode === '3d' && <Scene bottomSheetState={isMobile ? bottomSheetSnapPoint : undefined} />}
+        {viewMode === 'map' && (
+          <Suspense fallback={<ViewSkeleton label="Loading map…" />}>
+            <LazyMapCanvas onMapReady={handleMapReady} />
+          </Suspense>
+        )}
+        {viewMode === '3d' && (
+          <Suspense fallback={<ViewSkeleton label="Loading 3D view…" />}>
+            <LazyScene bottomSheetState={isMobile ? bottomSheetSnapPoint : undefined} />
+          </Suspense>
+        )}
         {viewMode === 'split' && !isMobile && (
           <div className="flex h-full">
             <div className="w-1/2 h-full border-r border-gray-300">
-              <MapCanvas onMapReady={handleMapReady} />
+              <Suspense fallback={<ViewSkeleton label="Loading map…" />}>
+                <LazyMapCanvas onMapReady={handleMapReady} />
+              </Suspense>
             </div>
             <div className="w-1/2 h-full">
-              <Scene />
+              <Suspense fallback={<ViewSkeleton label="Loading 3D view…" />}>
+                <LazyScene />
+              </Suspense>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import {
   LineChart,
   Line,
@@ -14,7 +14,7 @@ import {
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
 import { useSimulatorStore, selectSystemSize } from '../../store/simulatorStore';
 
-export function PowerChart() {
+function PowerChartInner() {
   const { hourlyPowerData, dailyOutput, isNight } = useSolarCalculation();
   const { animationHour } = useSimulatorStore();
   const systemSizeKw = useSimulatorStore(selectSystemSize);
@@ -157,3 +157,5 @@ export function PowerChart() {
     </div>
   );
 }
+
+export const PowerChart = memo(PowerChartInner);

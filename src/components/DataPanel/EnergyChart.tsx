@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import {
   AreaChart,
   Area,
@@ -14,7 +14,7 @@ import {
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
 import { useSimulatorStore, selectSystemSize } from '../../store/simulatorStore';
 
-export function EnergyChart() {
+function EnergyChartInner() {
   const { cumulativeEnergyData, dailyOutput, isNight, hourlyPowerData } = useSolarCalculation();
   const { animationHour } = useSimulatorStore();
   const systemSizeKw = useSimulatorStore(selectSystemSize);
@@ -158,3 +158,5 @@ export function EnergyChart() {
     </div>
   );
 }
+
+export const EnergyChart = memo(EnergyChartInner);

@@ -11,11 +11,12 @@
  * 4. Advanced Metrics (collapsible)
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, lazy, Suspense, memo } from 'react';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
-import { PowerChart } from './PowerChart';
-import { EnergyChart } from './EnergyChart';
 import { useCompactMode } from '../../hooks/usePanelState';
+
+const LazyPowerChart = lazy(() => import('./PowerChart').then((mod) => ({ default: mod.PowerChart })));
+const LazyEnergyChart = lazy(() => import('./EnergyChart').then((mod) => ({ default: mod.EnergyChart })));
 
 // Tooltip component
 function Tooltip({ text }: { text: string }) {
@@ -52,7 +53,7 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-export function DataPanel() {
+function DataPanelInner() {
   const { summary, solarPosition, poaIrradiance, irradiance, currentLosses, cellTemperature, isNight, currentTimeLocal, location } = useSolarCalculation();
   const isCompact = useCompactMode();
   const [showCharts, setShowCharts] = useState(!isCompact);
@@ -341,7 +342,9 @@ export function DataPanel() {
                 <h3 className="text-sm font-medium text-gray-700">Power Output</h3>
                 <Tooltip text="Hourly AC power output throughout the day" />
               </div>
-              <PowerChart />
+              <Suspense fallback={<div className="h-48 rounded-lg bg-gray-100 animate-pulse" />}>
+                <LazyPowerChart />
+              </Suspense>
             </div>
 
             {/* Energy Chart */}
@@ -350,7 +353,9 @@ export function DataPanel() {
                 <h3 className="text-sm font-medium text-gray-700">Cumulative Energy</h3>
                 <Tooltip text="Running total of energy generated" />
               </div>
-              <EnergyChart />
+              <Suspense fallback={<div className="h-48 rounded-lg bg-gray-100 animate-pulse" />}>
+                <LazyEnergyChart />
+              </Suspense>
             </div>
           </div>
         )}
@@ -583,3 +588,5 @@ export function DataPanel() {
     </div>
   );
 }
+
+export const DataPanel = memo(DataPanelInner);
