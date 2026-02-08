@@ -228,6 +228,13 @@ describe('getTimezoneFromCoordinates', () => {
     // -30 / 15 = -2 => Etc/GMT+2 (sign inverted in Etc/GMT)
     expect(tz).toBe('Etc/GMT+2');
   });
+
+  it('should include boundary coordinates in region match', () => {
+    const minBoundary = getTimezoneFromCoordinates(32, -125);
+    const maxBoundary = getTimezoneFromCoordinates(49, -114);
+    expect(minBoundary).toBe('America/Los_Angeles');
+    expect(maxBoundary).toBe('America/Los_Angeles');
+  });
 });
 
 describe('isValidTimezone', () => {
@@ -237,6 +244,23 @@ describe('isValidTimezone', () => {
 
   it('should return false for an invalid timezone', () => {
     expect(isValidTimezone('Invalid/Timezone')).toBe(false);
+  });
+});
+
+describe('createLocalDateTime rounding', () => {
+  it('should normalize rounded minutes to the next hour', () => {
+    const baseDate = new Date('2024-01-15T00:00:00Z');
+    const timezone = 'America/Los_Angeles';
+    const result = createLocalDateTime(baseDate, 10.999, timezone);
+    const recoveredHour = getLocalHourFromUtc(result, timezone);
+    expect(recoveredHour).toBeCloseTo(11, 2);
+  });
+});
+
+describe('getTimezoneOffset invalid timezone', () => {
+  it('should return 0 when timezone is invalid', () => {
+    const offset = getTimezoneOffset('Invalid/Timezone');
+    expect(offset).toBe(0);
   });
 });
 
