@@ -45,4 +45,10 @@ describe('losses', () => {
     expect(result.acPower).toBeLessThanOrEqual(1000);
     expect(result.clippingLoss).toBeGreaterThanOrEqual(0);
   });
+
+  it('should return zero output when dcPower is zero', () => {
+    const result = calculateInverterOutput(0, { efficiency: 0.96, acCapacity: 1000, dcAcRatio: 1.2 }, 1200);
+    expect(result.acPower).toBe(0);
+    expect(result.efficiency).toBe(0);
+  });
 });

@@ -27,6 +27,11 @@ describe('atmosphere', () => {
     expect(calculateDiffuseFraction(0.9)).toBeCloseTo(0.165, 3);
   });
 
+  it('should clamp diffuse fraction input bounds', () => {
+    expect(calculateDiffuseFraction(-1)).toBeGreaterThanOrEqual(0);
+    expect(calculateDiffuseFraction(2)).toBeCloseTo(0.165, 3);
+  });
+
   it('should compute extraterrestrial irradiance within reasonable range', () => {
     const value = calculateExtraterrestrialIrradiance(1);
     expect(value).toBeGreaterThan(1300);

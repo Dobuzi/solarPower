@@ -114,7 +114,25 @@ vi.mock('../models/panelPresets', () => ({
       noct: 45,
     },
   }),
-  getPanelPreset: () => undefined,
+  getPanelPreset: (id: string) => {
+    if (id === 'preset-1') {
+      return {
+        id: 'preset-1',
+        name: 'Preset 1',
+        manufacturer: 'Test',
+        model: 'T1',
+        config: {
+          width: 1,
+          height: 2,
+          ratedPower: 500,
+          efficiency: 0.2,
+          tempCoefficient: -0.35,
+          noct: 45,
+        },
+      };
+    }
+    return undefined;
+  },
 }));
 
 vi.mock('../models/location', () => ({
@@ -167,5 +185,55 @@ describe('simulatorStore', () => {
 
     const hourly = selectHourlyPower(useSimulatorStore.getState());
     expect(hourly).toHaveLength(24);
+  });
+
+  it('should update panel preset and orientation', async () => {
+    const { useSimulatorStore } = await import('./simulatorStore');
+    useSimulatorStore.getState().setPanelPreset('preset-1');
+    expect(useSimulatorStore.getState().panelConfig.ratedPower).toBe(500);
+
+    useSimulatorStore.getState().setOrientation({ tilt: 10, azimuth: 150 });
+    expect(useSimulatorStore.getState().orientation.tilt).toBe(10);
+    expect(useSimulatorStore.getState().orientation.azimuth).toBe(150);
+  });
+
+  it('should clamp albedo and turbidity and wrap animation hour', async () => {
+    const { useSimulatorStore } = await import('./simulatorStore');
+    useSimulatorStore.getState().setAlbedo(2);
+    expect(useSimulatorStore.getState().albedo).toBe(1);
+
+    useSimulatorStore.getState().setLinkeTurbidity(10);
+    expect(useSimulatorStore.getState().linkeTurbidity).toBe(7);
+
+    useSimulatorStore.getState().setAnimationHour(-1);
+    expect(useSimulatorStore.getState().animationHour).toBeCloseTo(23, 2);
+  });
+
+  it('should reset config to defaults', async () => {
+    const { useSimulatorStore } = await import('./simulatorStore');
+    useSimulatorStore.setState({
+      panelCount: 20,
+      orientation: { tilt: 5, azimuth: 90 },
+      ambientTemp: 40,
+      albedo: 0.5,
+      linkeTurbidity: 6,
+    });
+
+    useSimulatorStore.getState().resetConfig();
+    const state = useSimulatorStore.getState();
+    expect(state.panelCount).toBe(10);
+    expect(state.ambientTemp).toBe(25);
+    expect(state.albedo).toBe(0.2);
+  });
+
+  it('should set location and auto-detect timezone', async () => {
+    const { useSimulatorStore } = await import('./simulatorStore');
+    useSimulatorStore.getState().setLocation({
+      latitude: 1,
+      longitude: 2,
+      timezone: 'Etc/GMT+1',
+      address: 'Test',
+    });
+    expect(useSimulatorStore.getState().location.timezone).toBe('America/Los_Angeles');
   });
 });

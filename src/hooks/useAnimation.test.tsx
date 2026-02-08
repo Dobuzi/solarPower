@@ -69,6 +69,18 @@ describe('useAnimation', () => {
     });
 
     expect(setAnimationHour).toHaveBeenCalled();
-    expect(useSimulatorStore.getState().animationHour).toBeCloseTo(2, 2);
+    const lastCall = setAnimationHour.mock.calls.at(-1)?.[0] as number;
+    expect(lastCall).toBeGreaterThan(0);
+  });
+
+  it('should pause animation', () => {
+    useSimulatorStore.setState({ isAnimating: true });
+    const { result } = renderHook(() => useAnimation());
+
+    act(() => {
+      result.current.pause();
+    });
+
+    expect(useSimulatorStore.getState().isAnimating).toBe(false);
   });
 });

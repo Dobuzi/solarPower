@@ -86,4 +86,11 @@ describe('panel output helpers', () => {
     expect(result.dcPower).toBeGreaterThan(0);
     expect(result.losses.systemTotal).toBeGreaterThan(0);
   });
+
+  it('should return zero power at night', () => {
+    const nightIrradiance = { ...baseIrradiance, ghi: 0, dni: 0, dhi: 0 };
+    const poa = calculatePOAIrradiance(nightIrradiance, 95, baseSolarPosition.azimuth, orientation.tilt, orientation.azimuth, 0.2);
+    const result = calculateDCPower(poa, panelConfig, 25);
+    expect(result.dcPower).toBe(0);
+  });
 });

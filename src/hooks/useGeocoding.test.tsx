@@ -38,6 +38,29 @@ describe('useGeocoding', () => {
     expect(result.current.error).toBe('Geocoding request failed');
   });
 
+  it('should handle unknown error type', async () => {
+    global.fetch = vi.fn().mockImplementation(() => {
+      throw 'bad';
+    }) as unknown as typeof fetch;
+    const { result } = renderHook(() => useGeocoding());
+
+    await act(async () => {
+      const res = await result.current.search('Boom');
+      expect(res).toHaveLength(0);
+    });
+
+    expect(result.current.error).toBe('Unknown error');
+  });
+
+  it('should reset state when query is empty', async () => {
+    const { result } = renderHook(() => useGeocoding());
+    await act(async () => {
+      const res = await result.current.search('  ');
+      expect(res).toHaveLength(0);
+    });
+    expect(result.current.results).toHaveLength(0);
+  });
+
   it('should reverse geocode', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -50,5 +73,31 @@ describe('useGeocoding', () => {
       const res = await result.current.reverseGeocode(1, 2);
       expect(res?.address).toBe('Reverse Place');
     });
+  });
+
+  it('should fallback to coordinates when display name missing', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useGeocoding());
+
+    await act(async () => {
+      const res = await result.current.reverseGeocode(1.2345, 6.789);
+      expect(res?.address).toContain('1.2345');
+    });
+  });
+
+  it('should handle reverse geocode failure', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+    const { result } = renderHook(() => useGeocoding());
+
+    await act(async () => {
+      const res = await result.current.reverseGeocode(1, 2);
+      expect(res).toBeNull();
+    });
+
+    expect(result.current.error).toBe('Reverse geocoding request failed');
   });
 });

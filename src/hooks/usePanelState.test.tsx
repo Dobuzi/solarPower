@@ -41,6 +41,18 @@ describe('usePanelState', () => {
     expect(result.current.visibility.config).toBe(true);
   });
 
+  it('should fall back on invalid stored JSON', () => {
+    localStorage.setItem('solar-sim-panel-state-v2', '{invalid-json');
+    const { result } = renderHook(() => usePanelState(false));
+    expect(result.current.visibility.output).toBe(true);
+  });
+
+  it('should handle missing desktop/mobile in stored state', () => {
+    localStorage.setItem('solar-sim-panel-state-v2', JSON.stringify({ version: 2 }));
+    const { result } = renderHook(() => usePanelState(false));
+    expect(result.current.visibility.time).toBe(true);
+  });
+
   it('should handle mobile state and toggle', () => {
     const { result, rerender } = renderHook(({ isMobile }) => usePanelState(isMobile), { initialProps: { isMobile: true } });
     expect(result.current.visibility.config).toBe(true);

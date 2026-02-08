@@ -99,4 +99,17 @@ describe('useSolarCalculation', () => {
     expect(result.current.summary?.yearlyCO2Offset).toBeCloseTo((24000 * 365 / 1000) * 0.42, 2);
     expect(result.current.summary?.peakPower).toBe(1100);
   });
+
+  it('should return null summary when dailyOutput missing', () => {
+    useSimulatorStore.setState({ dailyOutput: null, solarPosition: baseSolarPosition });
+    const { result } = renderHook(() => useSolarCalculation());
+    expect(result.current.summary).toBeNull();
+  });
+
+  it('should build hourly and cumulative series', () => {
+    useSimulatorStore.setState({ dailyOutput, solarPosition: baseSolarPosition });
+    const { result } = renderHook(() => useSolarCalculation());
+    expect(result.current.hourlyPowerData).toHaveLength(24);
+    expect(result.current.cumulativeEnergyData).toHaveLength(24);
+  });
 });

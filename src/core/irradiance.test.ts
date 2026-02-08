@@ -41,6 +41,11 @@ describe('calculateIrradiance', () => {
     expect(f2).toBeGreaterThanOrEqual(-1);
   });
 
+  it('should handle zero dhi in clearness calculation', () => {
+    const epsilon = calculateClearness(0, 500, 30);
+    expect(epsilon).toBe(1);
+  });
+
   it('should estimate linke turbidity from conditions', () => {
     expect(estimateLinkeTurbidity('low', 'clean')).toBeLessThan(estimateLinkeTurbidity('high', 'polluted'));
   });
