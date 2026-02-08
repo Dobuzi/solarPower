@@ -3,6 +3,24 @@ import { renderHook, act } from '@testing-library/react';
 import { getMediaQueryMatch, useMediaQuery, useIsMobile, useIsTablet, usePrefersReducedMotion } from './useMediaQuery';
 
 
+const createMediaQueryList = (
+  matches: boolean,
+  media: string,
+  addEventListener?: MediaQueryList['addEventListener'],
+  removeEventListener?: MediaQueryList['removeEventListener'],
+): MediaQueryList => {
+  return {
+    matches,
+    media,
+    onchange: null,
+    addEventListener: addEventListener ?? (() => {}),
+    removeEventListener: removeEventListener ?? (() => {}),
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  } as MediaQueryList;
+};
+
 describe('useMediaQuery', () => {
   it('returns false when no window is available', () => {
     expect(getMediaQueryMatch('(max-width: 600px)', undefined)).toBe(false);
@@ -21,12 +39,15 @@ describe('useMediaQuery', () => {
     const listeners: Array<(e: MediaQueryListEvent) => void> = [];
 
     window.matchMedia = ((query: string) => {
-      return {
-        matches: false,
-        media: query,
-        addEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => listeners.push(cb),
-        removeEventListener: () => {},
-      } as MediaQueryList;
+      return createMediaQueryList(
+        false,
+        query,
+        (_: string, cb: EventListenerOrEventListenerObject) => {
+          if (typeof cb === 'function') {
+            listeners.push(cb as (e: MediaQueryListEvent) => void);
+          }
+        },
+      );
     }) as typeof window.matchMedia;
 
     const { result } = renderHook(() => useMediaQuery('(max-width: 600px)'));
@@ -42,12 +63,7 @@ describe('useMediaQuery', () => {
   it('should remove listener on unmount', () => {
     const removeListener = vi.fn();
     window.matchMedia = ((query: string) => {
-      return {
-        matches: true,
-        media: query,
-        addEventListener: () => {},
-        removeEventListener: removeListener,
-      } as MediaQueryList;
+      return createMediaQueryList(true, query, undefined, removeListener);
     }) as typeof window.matchMedia;
 
     const { unmount } = renderHook(() => useMediaQuery('(max-width: 600px)'));
@@ -58,12 +74,7 @@ describe('useMediaQuery', () => {
 
   it('should expose convenience hooks', () => {
     window.matchMedia = ((query: string) => {
-      return {
-        matches: query.includes('max-width: 767px'),
-        media: query,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      } as MediaQueryList;
+      return createMediaQueryList(query.includes('max-width: 767px'), query);
     }) as typeof window.matchMedia;
 
     const { result: isMobile } = renderHook(() => useIsMobile());

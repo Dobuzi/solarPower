@@ -9,8 +9,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-// @ts-expect-error - assign to global
-global.ResizeObserver = ResizeObserverMock;
+globalThis.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
 
 // Mock matchMedia for useMediaQuery
 if (!window.matchMedia) {
@@ -30,10 +29,12 @@ if (!window.matchMedia) {
 
 // Mock visualViewport for positioning logic
 if (!window.visualViewport) {
-  // @ts-expect-error - partial mock
   window.visualViewport = {
     addEventListener: () => {},
     removeEventListener: () => {},
+    onresize: null,
+    onscroll: null,
+    dispatchEvent: () => false,
     width: 0,
     height: 0,
     offsetLeft: 0,
@@ -41,7 +42,7 @@ if (!window.visualViewport) {
     pageLeft: 0,
     pageTop: 0,
     scale: 1,
-  };
+  } as unknown as VisualViewport;
 }
 
 // Ensure localStorage exists in test environment

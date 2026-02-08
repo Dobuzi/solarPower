@@ -125,11 +125,11 @@ export function SearchDropdown({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setActiveIndex((prev) => Math.min(prev + 1, results.length - 1));
+          setActiveIndex(Math.min(activeIndex + 1, results.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setActiveIndex((prev) => Math.max(prev - 1, 0));
+          setActiveIndex(Math.max(activeIndex - 1, 0));
           break;
         case 'Enter':
           e.preventDefault();
