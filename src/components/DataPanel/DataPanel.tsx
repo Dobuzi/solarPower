@@ -11,7 +11,7 @@
  * 4. Advanced Metrics (collapsible)
  */
 
-import { useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
 import { PowerChart } from './PowerChart';
 import { EnergyChart } from './EnergyChart';
@@ -19,26 +19,184 @@ import { useCompactMode } from '../../hooks/usePanelState';
 
 // Tooltip component
 function Tooltip({ text }: { text: string }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="group relative inline-block ml-1">
-      <svg className="w-3.5 h-3.5 text-gray-400 cursor-help" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-      </svg>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+    <span className="relative inline-flex items-center ml-1">
+      <button
+        type="button"
+        className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-solar-500 rounded"
+        aria-describedby={id}
+        onClick={() => setOpen((prev) => !prev)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap transition-opacity pointer-events-none z-50 ${
+          open ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         {text}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-      </div>
-    </div>
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+      </span>
+    </span>
   );
 }
 
 export function DataPanel() {
   const { summary, solarPosition, poaIrradiance, irradiance, currentLosses, cellTemperature, isNight, currentTimeLocal, location } = useSolarCalculation();
-  const [showCharts, setShowCharts] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const isCompact = useCompactMode();
+  const [showCharts, setShowCharts] = useState(!isCompact);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [powerUnit, setPowerUnit] = useState<'kW' | 'W'>('kW');
+  const [energyUnit, setEnergyUnit] = useState<'kWh' | 'Wh'>('kWh');
+  const [decimals, setDecimals] = useState<0 | 1 | 2>(1);
+  const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
+  const hasStoredPrefsRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const storedCharts = localStorage.getItem('solar-sim-output-show-charts-v1');
+      const storedAdvanced = localStorage.getItem('solar-sim-output-show-advanced-v1');
+      const storedPowerUnit = localStorage.getItem('solar-sim-output-power-unit-v1');
+      const storedEnergyUnit = localStorage.getItem('solar-sim-output-energy-unit-v1');
+      const storedDecimals = localStorage.getItem('solar-sim-output-decimals-v1');
+      const storedCurrency = localStorage.getItem('solar-sim-output-currency-v1');
+      if (storedCharts !== null) {
+        setShowCharts(storedCharts === 'true');
+        hasStoredPrefsRef.current = true;
+      }
+      if (storedAdvanced !== null) {
+        setShowAdvanced(storedAdvanced === 'true');
+        hasStoredPrefsRef.current = true;
+      }
+      if (storedPowerUnit === 'kW' || storedPowerUnit === 'W') {
+        setPowerUnit(storedPowerUnit);
+      }
+      if (storedEnergyUnit === 'kWh' || storedEnergyUnit === 'Wh') {
+        setEnergyUnit(storedEnergyUnit);
+      }
+      if (storedDecimals === '0' || storedDecimals === '1' || storedDecimals === '2') {
+        setDecimals(Number(storedDecimals) as 0 | 1 | 2);
+      }
+      if (storedCurrency === 'USD' || storedCurrency === 'EUR' || storedCurrency === 'GBP') {
+        setCurrency(storedCurrency);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasStoredPrefsRef.current) return;
+    setShowCharts(!isCompact);
+  }, [isCompact]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-show-charts-v1', String(showCharts));
+    } catch {
+      // no-op
+    }
+  }, [showCharts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-show-advanced-v1', String(showAdvanced));
+    } catch {
+      // no-op
+    }
+  }, [showAdvanced]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-power-unit-v1', powerUnit);
+    } catch {
+      // no-op
+    }
+  }, [powerUnit]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-energy-unit-v1', energyUnit);
+    } catch {
+      // no-op
+    }
+  }, [energyUnit]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-decimals-v1', String(decimals));
+    } catch {
+      // no-op
+    }
+  }, [decimals]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('solar-sim-output-currency-v1', currency);
+    } catch {
+      // no-op
+    }
+  }, [currency]);
 
   if (!summary || !solarPosition) return null;
+
+  const numberFormatter = useMemo(() => {
+    try {
+      return new Intl.NumberFormat(navigator.language || 'en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      });
+    } catch {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      });
+    }
+  }, [decimals]);
+
+  const currencyFormatter = useMemo(() => {
+    try {
+      return new Intl.NumberFormat(navigator.language || 'en-US', {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+      });
+    } catch {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+      });
+    }
+  }, [currency]);
+
+  const formatPower = (watts: number) => {
+    if (powerUnit === 'W') {
+      return `${numberFormatter.format(watts)} W`;
+    }
+    return `${numberFormatter.format(watts / 1000)} kW`;
+  };
+
+  const formatEnergy = (wh: number) => {
+    if (energyUnit === 'Wh') {
+      return `${numberFormatter.format(wh)} Wh`;
+    }
+    return `${numberFormatter.format(wh / 1000)} kWh`;
+  };
+
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
 
   // Dynamic sizing based on compact mode
   const panelWidth = isCompact ? 'w-80' : 'w-96';
@@ -47,18 +205,86 @@ export function DataPanel() {
 
   return (
     <div className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-xl ${padding} ${panelWidth} max-h-[calc(100vh-180px)] overflow-y-auto`}>
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Output Data</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-800">Output Data</h2>
+        <button
+          type="button"
+          onClick={() => setShowDisplaySettings((prev) => !prev)}
+          className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-solar-500"
+          aria-label="Toggle display settings"
+          title="Display settings"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c0 .65.39 1.24 1 1.51.31.14.65.21 1 .21H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+          </svg>
+        </button>
+      </div>
+
+      {showDisplaySettings && (
+        <div className={`bg-gray-50 rounded-lg p-3 ${marginBottom}`}>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Display</h3>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <label className="flex flex-col gap-1 text-gray-600">
+              Power Unit
+              <select
+                value={powerUnit}
+                onChange={(e) => setPowerUnit(e.target.value as 'kW' | 'W')}
+                className="px-2 py-2 bg-white border border-gray-300 rounded-md text-sm"
+              >
+                <option value="kW">kW</option>
+                <option value="W">W</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-gray-600">
+              Energy Unit
+              <select
+                value={energyUnit}
+                onChange={(e) => setEnergyUnit(e.target.value as 'kWh' | 'Wh')}
+                className="px-2 py-2 bg-white border border-gray-300 rounded-md text-sm"
+              >
+                <option value="kWh">kWh</option>
+                <option value="Wh">Wh</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-gray-600">
+              Decimals
+              <select
+                value={decimals}
+                onChange={(e) => setDecimals(Number(e.target.value) as 0 | 1 | 2)}
+                className="px-2 py-2 bg-white border border-gray-300 rounded-md text-sm"
+              >
+                <option value={0}>0</option>
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-gray-600">
+              Currency
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as 'USD' | 'EUR' | 'GBP')}
+                className="px-2 py-2 bg-white border border-gray-300 rounded-md text-sm"
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* PRIORITY 1: Essential Metrics - Always Visible */}
       {/* Night Mode Indicator */}
       {isNight && (
-        <div className={`p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center ${marginBottom}`}>
+        <div className={`p-3 bg-indigo-100 border border-indigo-200 rounded-lg flex items-center ${marginBottom}`}>
           <svg className="w-5 h-5 text-indigo-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-indigo-700">Sun Below Horizon</p>
-            <p className="text-xs text-indigo-600">No solar generation at this time</p>
+            <p className="text-sm font-medium text-indigo-800">Sun Below Horizon</p>
+            <p className="text-xs text-indigo-700">No solar generation at this time</p>
           </div>
         </div>
       )}
@@ -73,19 +299,19 @@ export function DataPanel() {
           <span className="text-lg font-bold text-gray-800">{currentTimeLocal}</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className={`rounded-lg p-3 ${isNight ? 'bg-gray-100' : 'bg-gradient-to-br from-solar-400 to-solar-600'} ${isNight ? 'text-gray-500' : 'text-white'}`}>
+          <div className={`rounded-lg p-3 ${isNight ? 'bg-indigo-100' : 'bg-gradient-to-br from-solar-400 to-solar-600'} ${isNight ? 'text-indigo-800' : 'text-white'}`}>
             <div className="flex items-center">
               <span className="text-xs opacity-80">Instant Power</span>
               <Tooltip text="Current AC power output from all panels" />
             </div>
-            <p className="text-2xl font-bold">{(summary.instantPower / 1000).toFixed(2)} kW</p>
+            <p className="text-2xl font-bold">{formatPower(summary.instantPower)}</p>
           </div>
           <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg p-3 text-white">
             <div className="flex items-center">
               <span className="text-xs opacity-80">Daily Energy</span>
               <Tooltip text="Total energy generated today (24 hours)" />
             </div>
-            <p className="text-2xl font-bold">{(summary.dailyEnergy / 1000).toFixed(1)} kWh</p>
+            <p className="text-2xl font-bold">{formatEnergy(summary.dailyEnergy)}</p>
           </div>
         </div>
       </div>
@@ -155,7 +381,7 @@ export function DataPanel() {
         </div>
         <div className="bg-gray-50 rounded-lg p-2">
           <span className="text-xs text-gray-500">Peak Power</span>
-          <p className="text-sm font-semibold text-gray-800">{(summary.peakPower / 1000).toFixed(2)} kW</p>
+          <p className="text-sm font-semibold text-gray-800">{formatPower(summary.peakPower)}</p>
         </div>
       </div>
 
@@ -171,15 +397,15 @@ export function DataPanel() {
               <span className="text-xs text-gray-500">Weekly</span>
               <Tooltip text="7 days × 24 hours = 168 hour projection" />
             </div>
-            <p className="text-sm font-semibold text-emerald-600">{(summary.weeklyEnergy / 1000).toFixed(0)} kWh</p>
+            <p className="text-sm font-semibold text-emerald-600">{formatEnergy(summary.weeklyEnergy)}</p>
           </div>
           <div>
             <span className="text-xs text-gray-500">Monthly</span>
-            <p className="text-sm font-semibold text-emerald-600">{(summary.monthlyEnergy / 1000).toFixed(0)} kWh</p>
+            <p className="text-sm font-semibold text-emerald-600">{formatEnergy(summary.monthlyEnergy)}</p>
           </div>
           <div>
             <span className="text-xs text-gray-500">Yearly</span>
-            <p className="text-sm font-semibold text-emerald-600">{(summary.yearlyEnergy / 1000).toFixed(0)} kWh</p>
+            <p className="text-sm font-semibold text-emerald-600">{formatEnergy(summary.yearlyEnergy)}</p>
           </div>
         </div>
       </div>
@@ -188,7 +414,7 @@ export function DataPanel() {
       <div className={`grid grid-cols-2 gap-2 ${marginBottom}`}>
         <div className="bg-blue-50 rounded-lg p-2 text-center">
           <span className="text-xs text-blue-600">Yearly Savings</span>
-          <p className="text-lg font-bold text-blue-700">${summary.yearlySavings.toFixed(0)}</p>
+          <p className="text-lg font-bold text-blue-700">{formatCurrency(summary.yearlySavings)}</p>
         </div>
         <div className="bg-green-50 rounded-lg p-2 text-center">
           <div className="flex items-center justify-center">

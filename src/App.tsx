@@ -11,6 +11,7 @@ import { MobileBottomSheet } from './components/MobileBottomSheet';
 import { PanelToggles } from './components/PanelToggles';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { usePanelState } from './hooks/usePanelState';
+import { useSolarCalculation } from './hooks/useSolarCalculation';
 
 type ViewMode = 'map' | '3d' | 'split';
 
@@ -58,6 +59,8 @@ function DesktopLayout({
 }) {
   const isMobile = useIsMobile();
   const { visibility, togglePanel, setAllPanels, isDetailView } = usePanelState(isMobile);
+  const { summary } = useSolarCalculation();
+  const showMiniSummary = !isDetailView || (!visibility.config && !visibility.output && !visibility.time);
 
   return (
     <>
@@ -104,6 +107,22 @@ function DesktopLayout({
             isDetailView={isDetailView}
             onToggleAll={setAllPanels}
           />
+
+          {showMiniSummary && summary && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-3 py-2 text-xs text-gray-700">
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">Now</div>
+                  <div className="font-semibold text-gray-800">{(summary.instantPower / 1000).toFixed(2)} kW</div>
+                </div>
+                <div className="w-px h-6 bg-gray-200" />
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">Today</div>
+                  <div className="font-semibold text-gray-800">{(summary.dailyEnergy / 1000).toFixed(1)} kWh</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

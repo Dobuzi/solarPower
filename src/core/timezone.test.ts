@@ -13,6 +13,8 @@ import {
   getLocalHourFromUtc,
   formatLocalHour,
   getTimezoneOffset,
+  getTimezoneFromCoordinates,
+  isValidTimezone,
 } from './timezone';
 
 describe('createLocalDateTime', () => {
@@ -207,6 +209,34 @@ describe('getTimezoneOffset', () => {
 
     // JST is UTC+9, so offset should be +540 minutes
     expect(offset).toBe(540);
+  });
+});
+
+describe('getTimezoneFromCoordinates', () => {
+  it('should map coordinates in California to America/Los_Angeles', () => {
+    const tz = getTimezoneFromCoordinates(37.7749, -122.4194);
+    expect(tz).toBe('America/Los_Angeles');
+  });
+
+  it('should map coordinates in Tokyo to Asia/Tokyo', () => {
+    const tz = getTimezoneFromCoordinates(35.6895, 139.6917);
+    expect(tz).toBe('Asia/Tokyo');
+  });
+
+  it('should fall back to Etc/GMT offset when no region matches', () => {
+    const tz = getTimezoneFromCoordinates(0, -30);
+    // -30 / 15 = -2 => Etc/GMT+2 (sign inverted in Etc/GMT)
+    expect(tz).toBe('Etc/GMT+2');
+  });
+});
+
+describe('isValidTimezone', () => {
+  it('should return true for a valid IANA timezone', () => {
+    expect(isValidTimezone('America/Los_Angeles')).toBe(true);
+  });
+
+  it('should return false for an invalid timezone', () => {
+    expect(isValidTimezone('Invalid/Timezone')).toBe(false);
   });
 });
 

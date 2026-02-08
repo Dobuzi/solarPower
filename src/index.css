@@ -132,3 +132,11 @@ input[type="range"]::-moz-range-track {
 .panel-overlay {
   backdrop-filter: blur(8px);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

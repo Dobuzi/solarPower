@@ -303,14 +303,42 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
             touchAction: 'none',
           }}
         >
-          <div
-            className="w-12 h-1.5 bg-gray-400 rounded-full transition-colors hover:bg-gray-500"
-            style={{
-              // Subtle pulse hint on first open (zero-onboarding discoverability)
-              animation: !hasSeenHint.current && isOpen ? 'handlePulse 2s ease-out' : 'none',
-            }}
-            onAnimationEnd={() => { hasSeenHint.current = true; }}
-          />
+          <div className="flex flex-col items-center">
+            <div
+              className="w-12 h-1.5 bg-gray-400 rounded-full transition-colors hover:bg-gray-500"
+              style={{
+                // Subtle pulse hint on first open (zero-onboarding discoverability)
+                animation: !hasSeenHint.current && isOpen ? 'handlePulse 2s ease-out' : 'none',
+              }}
+              onAnimationEnd={() => { hasSeenHint.current = true; }}
+            />
+            <div className="mt-1 text-[10px] text-gray-500 flex items-center gap-1">
+              {snapPoint === 'peek' && (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  Swipe up for details
+                </>
+              )}
+              {snapPoint === 'default' && (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  Swipe up for more
+                </>
+              )}
+              {snapPoint === 'full' && (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 9l7 7 7-7" />
+                  </svg>
+                  Swipe down to collapse
+                </>
+              )}
+            </div>
+          </div>
           <style>{`
             @keyframes handlePulse {
               0%, 100% { transform: scaleX(1); opacity: 1; }

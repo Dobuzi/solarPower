@@ -7,6 +7,7 @@ import { SearchDropdown } from './SearchDropdown';
 export function SearchBar() {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const { isLoading, results, search } = useGeocoding();
   const setLocation = useSimulatorStore((state) => state.setLocation);
   const setOptimalOrientation = useSimulatorStore((state) => state.setOptimalOrientation);
@@ -14,9 +15,11 @@ export function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const listboxId = 'search-results-listbox';
 
   const handleSearch = useCallback((value: string) => {
     setQuery(value);
+    setActiveIndex(-1);
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -40,6 +43,13 @@ export function SearchBar() {
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setQuery('');
+    setActiveIndex(-1);
+    setIsOpen(false);
+    inputRef.current?.focus();
   }, []);
 
   // Close dropdown when clicking outside
@@ -66,7 +76,7 @@ export function SearchBar() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative w-full">
       <div
         ref={inputRef as unknown as React.RefObject<HTMLDivElement>}
         className="flex items-center bg-white rounded-lg shadow-lg"
@@ -81,12 +91,31 @@ export function SearchBar() {
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
           onFocus={() => query.trim() && results.length > 0 && setIsOpen(true)}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={listboxId}
+          aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
+          aria-label="Search location"
           placeholder="Search location..."
-          className="w-64 px-4 py-3 text-gray-800 focus:outline-none bg-transparent"
+          className="w-full sm:w-64 px-4 py-3 text-gray-800 focus:outline-none bg-transparent"
         />
+        {query && (
+          <button
+            onClick={handleClear}
+            className="pr-2 text-gray-400 hover:text-gray-600"
+            aria-label="Clear search"
+            type="button"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
         {isLoading && (
-          <div className="pr-4">
+          <div className="pr-4 flex items-center gap-2" role="status" aria-live="polite">
             <div className="animate-spin h-5 w-5 border-2 border-solar-500 border-t-transparent rounded-full" />
+            <span className="text-xs text-gray-500">Searching…</span>
           </div>
         )}
       </div>
@@ -95,13 +124,18 @@ export function SearchBar() {
       <SearchDropdown
         results={results}
         isOpen={isOpen}
+        isLoading={isLoading}
+        query={query}
         onSelect={handleSelect}
         onClose={handleClose}
         anchorRef={containerRef}
+        listboxId={listboxId}
+        activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
       />
 
       {/* Current location display */}
-      <div className="mt-2 text-sm text-white/90 bg-black/30 px-3 py-1 rounded-lg inline-block max-w-full truncate">
+      <div className="mt-2 text-sm text-white/90 bg-black/30 px-3 py-1 rounded-lg inline-block max-w-[calc(100vw-2rem)] whitespace-normal break-words leading-tight">
         {location.address}
       </div>
     </div>

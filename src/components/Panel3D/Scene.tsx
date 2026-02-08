@@ -1,10 +1,54 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Sky, Text } from '@react-three/drei';
 import { SolarPanel } from './SolarPanel';
 import { Sun } from './Sun';
 import { Ground } from './Ground';
 import { useSimulatorStore } from '../../store/simulatorStore';
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useEffect } from 'react';
+import * as THREE from 'three';
+
+// Performance: Scene invalidation controller
+// Triggers re-render only when necessary (render-on-demand architecture)
+function SceneInvalidator() {
+  const invalidate = useThree((state) => state.invalidate);
+  const { solarPosition, orientation, panelCount, panelConfig } = useSimulatorStore();
+
+  // Invalidate when scene-affecting state changes
+  useEffect(() => {
+    invalidate();
+  }, [solarPosition, orientation, panelCount, panelConfig, invalidate]);
+
+  return null;
+}
+
+// Performance: Controls with render-on-demand integration
+interface CameraControlsProps {
+  enablePan: boolean;
+  enableZoom: boolean;
+  enableRotate: boolean;
+  enableDamping: boolean;
+  dampingFactor: number;
+  rotateSpeed: number;
+  zoomSpeed: number;
+  panSpeed: number;
+  target: [number, number, number];
+  minDistance: number;
+  maxDistance: number;
+  minPolarAngle: number;
+  maxPolarAngle: number;
+  onStart: () => void;
+}
+
+function CameraControls(props: CameraControlsProps) {
+  const invalidate = useThree((state) => state.invalidate);
+
+  // Trigger render on camera movement
+  const handleChange = useCallback(() => {
+    invalidate();
+  }, [invalidate]);
+
+  return <OrbitControls {...props} onChange={handleChange} />;
+}
 
 function SkyDome() {
   const { solarPosition, isNight } = useSimulatorStore();
@@ -294,9 +338,26 @@ export function Scene({ bottomSheetState = 'closed' }: SceneProps) {
 
   return (
     <div className="w-full h-full">
-      <Canvas shadows>
+      {/* Performance: frameloop="demand" = render only when needed, not continuously */}
+      {/* Performance: dpr capped at 1.5 for mobile, PCFSoftShadowMap for speed */}
+      <Canvas
+        shadows
+        frameloop="demand"
+        dpr={Math.min(isMobile ? 1.5 : 2, window.devicePixelRatio)}
+        gl={{
+          antialias: !isMobile, // Disable AA on mobile for performance
+          powerPreference: 'high-performance',
+        }}
+        onCreated={({ gl }) => {
+          // Performance: Use fastest shadow mode (PCF = faster than VSM)
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        }}
+      >
+        {/* Performance: Invalidator triggers render on state changes */}
+        <SceneInvalidator />
+
         <PerspectiveCamera makeDefault position={cameraInitialPosition} fov={50} />
-        <OrbitControls
+        <CameraControls
           enablePan={true}
           enableZoom={true}
           enableRotate={controlsConfig.enableRotate}

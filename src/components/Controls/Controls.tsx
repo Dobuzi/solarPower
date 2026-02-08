@@ -189,10 +189,16 @@ function SliderWithSteppers({
       </div>
 
       {/* Slider + Steppers */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 group">
         <StepperButton onClick={handleDecrement} disabled={value <= min} direction="minus" />
 
-        <div className="flex-1">
+        <div className="flex-1 relative">
+          <span
+            className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs px-2 py-0.5 rounded bg-gray-800 text-white opacity-0 transition-opacity pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100"
+            aria-hidden="true"
+          >
+            {displayValue}
+          </span>
           <input
             type="range"
             min={min}
@@ -202,6 +208,7 @@ function SliderWithSteppers({
             onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
+            aria-valuetext={displayValue}
             className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-solar-500"
             style={{
               // Prevent vertical scroll when dragging horizontally

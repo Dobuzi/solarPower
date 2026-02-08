@@ -16,9 +16,14 @@ import { Location } from '../../core/types';
 interface SearchDropdownProps {
   results: Location[];
   isOpen: boolean;
+  isLoading?: boolean;
+  query?: string;
   onSelect: (location: Location) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement>;
+  listboxId?: string;
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
 }
 
 interface Position {
@@ -30,14 +35,22 @@ interface Position {
 export function SearchDropdown({
   results,
   isOpen,
+  isLoading = false,
+  query = '',
   onSelect,
   onClose,
   anchorRef,
+  listboxId = 'search-results-listbox',
+  activeIndex: controlledActiveIndex,
+  onActiveIndexChange,
 }: SearchDropdownProps) {
   const [position, setPosition] = useState<Position>({ top: 0, left: 0, width: 0 });
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [internalActiveIndex, setInternalActiveIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
+  const activeIndex = controlledActiveIndex ?? internalActiveIndex;
+  const setActiveIndex = onActiveIndexChange ?? setInternalActiveIndex;
 
   // Calculate position based on anchor element
   // Uses useLayoutEffect to prevent visual flicker
@@ -102,7 +115,7 @@ export function SearchDropdown({
   // Reset active index when results change
   useEffect(() => {
     setActiveIndex(-1);
-  }, [results]);
+  }, [results, setActiveIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -133,7 +146,7 @@ export function SearchDropdown({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, activeIndex, results, onSelect, onClose]);
+  }, [isOpen, activeIndex, results, onSelect, onClose, setActiveIndex]);
 
   // Click outside to close (must check both container and portal dropdown)
   useEffect(() => {
@@ -164,13 +177,17 @@ export function SearchDropdown({
     }
   }, [activeIndex]);
 
-  if (!isOpen || results.length === 0) return null;
+  if (!isOpen) return null;
+
+  const showEmptyState = !isLoading && query.trim().length > 0 && results.length === 0;
 
   const dropdown = (
     <div
       ref={dropdownRef}
       role="listbox"
+      id={listboxId}
       aria-label="Search results"
+      aria-busy={isLoading}
       className="fixed bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden"
       style={{
         top: position.top,
@@ -181,9 +198,20 @@ export function SearchDropdown({
         zIndex: 9999,
       }}
     >
-      {results.map((loc, index) => (
+      {isLoading && (
+        <div className="px-4 py-3 text-sm text-gray-500" role="status" aria-live="polite">
+          Searching…
+        </div>
+      )}
+      {showEmptyState && (
+        <div className="px-4 py-3 text-sm text-gray-500">
+          No results. Try a city, address, or coordinates.
+        </div>
+      )}
+      {!isLoading && results.map((loc, index) => (
         <button
           key={`${loc.latitude}-${loc.longitude}-${index}`}
+          id={`search-option-${index}`}
           role="option"
           aria-selected={index === activeIndex}
           onClick={() => onSelect(loc)}

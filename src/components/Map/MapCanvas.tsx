@@ -11,7 +11,8 @@
  * - Global navigation support (world bounds)
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useSimulatorStore } from '../../store/simulatorStore';
@@ -19,6 +20,7 @@ import { useGeocoding } from '../../hooks/useGeocoding';
 import { SunVector } from './SunVector';
 import { MapErrorBoundary } from './MapErrorBoundary';
 import { GeolocationButton } from './GeolocationButton';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 // Custom marker icon
 const markerIcon = new L.Icon({
@@ -31,7 +33,7 @@ const markerIcon = new L.Icon({
   iconAnchor: [16, 32],
 });
 
-function MapClickHandler() {
+function MapClickHandler({ onToast }: { onToast: (message: string, type: 'success' | 'error') => void }) {
   const setLocation = useSimulatorStore((state) => state.setLocation);
   const setOptimalOrientation = useSimulatorStore((state) => state.setOptimalOrientation);
   const { reverseGeocode } = useGeocoding();
@@ -39,15 +41,65 @@ function MapClickHandler() {
   useMapEvents({
     async click(e) {
       const { lat, lng } = e.latlng;
-      const location = await reverseGeocode(lat, lng);
-      if (location) {
-        setLocation(location);
-        setOptimalOrientation();
+      try {
+        const location = await reverseGeocode(lat, lng);
+        if (location) {
+          setLocation(location);
+          setOptimalOrientation();
+          onToast(`Location set: ${location.address}`, 'success');
+        } else {
+          setLocation({
+            latitude: lat,
+            longitude: lng,
+            timezone: 'UTC',
+            address: `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`,
+          });
+          setOptimalOrientation();
+          onToast('Location set (coordinates only)', 'success');
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('[Map] Reverse geocode failed:', error);
+        }
+        onToast('Unable to look up address', 'error');
       }
     },
   });
 
   return null;
+}
+
+function MapZoomControls() {
+  const map = useMap();
+  const isMobile = useIsMobile();
+
+  if (!isMobile) return null;
+
+  return (
+    <div className="leaflet-top leaflet-right">
+      <div className="leaflet-control pointer-events-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        <button
+          onClick={() => map.zoomIn()}
+          className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+          aria-label="Zoom in"
+          title="Zoom in"
+          type="button"
+        >
+          +
+        </button>
+        <div className="h-px bg-gray-200" />
+        <button
+          onClick={() => map.zoomOut()}
+          className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+          aria-label="Zoom out"
+          title="Zoom out"
+          type="button"
+        >
+          −
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function MapUpdater({ onMapReady }: { onMapReady?: (map: L.Map) => void }) {
@@ -142,10 +194,12 @@ function MapInner({
   onMapReady,
   initialCenter,
   initialZoom,
+  onToast,
 }: {
   onMapReady?: (map: L.Map) => void;
   initialCenter?: [number, number];
   initialZoom?: number;
+  onToast: (message: string, type: 'success' | 'error') => void;
 }) {
   const location = useSimulatorStore((state) => state.location);
   const solarPosition = useSimulatorStore((state) => state.solarPosition);
@@ -201,7 +255,8 @@ function MapInner({
           elevation={solarPosition.elevation}
         />
       )}
-      <MapClickHandler />
+      <MapClickHandler onToast={onToast} />
+      <MapZoomControls />
       <MapUpdater onMapReady={onMapReady} />
     </MapContainer>
   );
@@ -219,6 +274,7 @@ interface MapCanvasProps {
 export function MapCanvas({ onMapReady }: MapCanvasProps) {
   const mapRef = useRef<L.Map | null>(null);
   const keyRef = useRef(0);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Store last known good state for recovery
   const lastStateRef = useRef<{
@@ -258,17 +314,44 @@ export function MapCanvas({ onMapReady }: MapCanvasProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const handleToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+  }, []);
+
   return (
-    <>
+    <div className="relative w-full h-full">
       <MapErrorBoundary onReset={handleReset}>
         <MapInner
           key={keyRef.current}
           onMapReady={handleMapReady}
           initialCenter={lastStateRef.current.center}
           initialZoom={lastStateRef.current.zoom}
+          onToast={handleToast}
         />
       </MapErrorBoundary>
       <GeolocationButton />
-    </>
+      {toast && createPortal(
+        <div
+          className={`fixed left-4 right-4 px-4 py-3 rounded-lg shadow-2xl animate-fade-in md:left-auto md:right-4 md:max-w-sm ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+          }`}
+          style={{
+            zIndex: 9999,
+            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+          }}
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+        >
+          {toast.message}
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }

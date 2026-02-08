@@ -1,14 +1,31 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useSimulatorStore } from '../../store/simulatorStore';
+import { useThree } from '@react-three/fiber';
 
 export function Sun() {
   const { solarPosition, isNight } = useSimulatorStore();
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const invalidate = useThree((state) => state.invalidate);
 
-  // Performance: Detect mobile for reduced shadow resolution
+  // Performance: Detect mobile for AGGRESSIVE shadow reduction
   const isMobile = useMemo(() => {
     return 'ontouchstart' in window || window.innerWidth < 768;
   }, []);
+
+  // Performance: Shadow map resolution (prioritize smoothness over quality)
+  // Desktop: 512 (down from 2048), Mobile: 256 (down from 1024)
+  const shadowMapSize = isMobile ? 256 : 512;
+
+  // Performance: Manual shadow updates only when sun position changes
+  // autoUpdate = false prevents continuous shadow map recalculation
+  useEffect(() => {
+    if (lightRef.current && lightRef.current.shadow) {
+      lightRef.current.shadow.autoUpdate = false;
+      lightRef.current.shadow.needsUpdate = true;
+      invalidate();
+    }
+  }, [solarPosition, invalidate]);
 
   const sunPosition = useMemo(() => {
     if (!solarPosition) {
@@ -102,22 +119,24 @@ export function Sun() {
         </group>
       )}
 
-      {/* Directional light from sun - tuned for crisp shadows */}
-      {/* Performance: 1024 on mobile, 2048 on desktop */}
+      {/* Directional light from sun */}
+      {/* Performance CRITICAL: 256 mobile / 512 desktop (down from 1024/2048) */}
+      {/* Manual shadow updates only = massive GPU savings */}
       <directionalLight
+        ref={lightRef}
         position={sunPosition}
-        intensity={intensity * 2.5} // Increased for better shadow contrast
+        intensity={intensity * 2.5}
         color="#fff5e6"
         castShadow
-        shadow-mapSize-width={isMobile ? 1024 : 2048}
-        shadow-mapSize-height={isMobile ? 1024 : 2048}
+        shadow-mapSize-width={shadowMapSize}
+        shadow-mapSize-height={shadowMapSize}
         shadow-camera-far={50}
         shadow-camera-left={-10}
         shadow-camera-right={10}
         shadow-camera-top={10}
         shadow-camera-bottom={-10}
-        shadow-bias={-0.0001} // Reduced shadow acne
-        shadow-normalBias={0.02} // Prevent peter-panning
+        shadow-bias={-0.0001}
+        shadow-normalBias={0.02}
       />
 
       {/* Sun path indicator line - shows where sun travels */}
