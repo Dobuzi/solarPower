@@ -225,9 +225,14 @@ function SliderWithSteppers({
   );
 }
 
-export function Controls() {
+interface ControlsProps {
+  variant?: 'full' | 'quick';
+}
+
+export function Controls({ variant = 'full' }: ControlsProps) {
   const isCompact = useCompactMode();
   const isMobile = useIsMobile();
+  const isQuick = variant === 'quick';
   const [configState, setConfigState] = useState<ConfigState>(loadConfigState);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -278,17 +283,10 @@ export function Controls() {
   const marginBottom = isCompact ? 'mb-3' : 'mb-4';
   const spacing = isMobile ? 'space-y-4' : 'space-y-3';
 
-  return (
-    <div className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-xl ${isMobile ? 'p-0' : 'p-5'} ${isMobile ? 'w-full' : isCompact ? 'w-72' : 'w-80'}`}>
-      {!isMobile && (
-        <h2 className={`${isCompact ? 'text-base' : 'text-lg'} font-semibold text-gray-800 ${marginBottom}`}>
-          Panel Configuration
-        </h2>
-      )}
-
-      {/* Essential Controls - Always Visible */}
-      <div className={spacing}>
-        {/* Panel Preset */}
+  const essentialControls = (
+    <div className={spacing}>
+      {/* Panel Preset */}
+      {!isQuick && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Panel Model</label>
           <select
@@ -307,69 +305,83 @@ export function Controls() {
             ))}
           </select>
         </div>
+      )}
 
-        {/* Panel Count with Stepper */}
-        <SliderWithSteppers
-          label="Panels"
-          value={panelCount}
-          min={1}
-          max={100}
-          step={1}
-          unit=""
-          onChange={setPanelCount}
-          formatValue={(v) => `${v} (${systemSize.toFixed(1)} kW)`}
-        />
+      {/* Panel Count with Stepper */}
+      <SliderWithSteppers
+        label="Panels"
+        value={panelCount}
+        min={1}
+        max={100}
+        step={1}
+        unit=""
+        onChange={setPanelCount}
+        formatValue={(v) => `${v} (${systemSize.toFixed(1)} kW)`}
+      />
 
-        {/* Tilt Angle with Stepper */}
-        <SliderWithSteppers
-          label="Tilt"
-          value={orientation.tilt}
-          min={0}
-          max={90}
-          step={1}
-          unit="°"
-          onChange={(tilt) => setOrientation({ tilt })}
-          optimalValue={optimalTilt}
-          onSetOptimal={() => setOrientation({ tilt: optimalTilt })}
-        />
+      {/* Tilt Angle with Stepper */}
+      <SliderWithSteppers
+        label="Tilt"
+        value={orientation.tilt}
+        min={0}
+        max={90}
+        step={1}
+        unit="°"
+        onChange={(tilt) => setOrientation({ tilt })}
+        optimalValue={optimalTilt}
+        onSetOptimal={() => setOrientation({ tilt: optimalTilt })}
+      />
 
-        {/* Azimuth Angle with Stepper */}
-        <SliderWithSteppers
-          label="Azimuth"
-          value={orientation.azimuth}
-          min={0}
-          max={360}
-          step={1}
-          unit="°"
-          onChange={(azimuth) => setOrientation({ azimuth })}
-          optimalValue={optimalAzimuth}
-          onSetOptimal={() => setOrientation({ azimuth: optimalAzimuth })}
-        />
-        {/* Compass labels for azimuth */}
-        <div className="flex justify-between text-xs text-gray-400 -mt-2 px-11">
-          <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span>
-        </div>
-
-        {/* Apply Optimal Button */}
-        <button
-          onClick={setOptimalOrientation}
-          disabled={isOptimal}
-          className={`w-full py-3 font-medium rounded-lg transition-all text-sm ${
-            isOptimal
-              ? 'bg-green-100 text-green-700 cursor-default'
-              : 'bg-solar-500 hover:bg-solar-600 active:bg-solar-700 text-white'
-          }`}
-          style={{
-            // Ensure 44px minimum tap target
-            minHeight: '44px',
-          }}
-        >
-          {isOptimal ? '✓ Optimal Orientation' : 'Apply Optimal Orientation'}
-        </button>
+      {/* Azimuth Angle with Stepper */}
+      <SliderWithSteppers
+        label="Azimuth"
+        value={orientation.azimuth}
+        min={0}
+        max={360}
+        step={1}
+        unit="°"
+        onChange={(azimuth) => setOrientation({ azimuth })}
+        optimalValue={optimalAzimuth}
+        onSetOptimal={() => setOrientation({ azimuth: optimalAzimuth })}
+      />
+      {/* Compass labels for azimuth */}
+      <div className="flex justify-between text-xs text-gray-400 -mt-2 px-11">
+        <span>N</span><span>E</span><span>S</span><span>W</span><span>N</span>
       </div>
 
+      {/* Apply Optimal Button */}
+      <button
+        onClick={setOptimalOrientation}
+        disabled={isOptimal}
+        className={`w-full py-3 font-medium rounded-lg transition-all text-sm ${
+          isOptimal
+            ? 'bg-green-100 text-green-700 cursor-default'
+            : 'bg-solar-500 hover:bg-solar-600 active:bg-solar-700 text-white'
+        }`}
+        style={{
+          // Ensure 44px minimum tap target
+          minHeight: '44px',
+        }}
+      >
+        {isOptimal ? '✓ Optimal Orientation' : 'Apply Optimal Orientation'}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-xl ${isMobile ? 'p-0' : 'p-5'} ${isMobile ? 'w-full' : isCompact ? 'w-72' : 'w-80'}`}>
+      {!isMobile && !isQuick && (
+        <h2 className={`${isCompact ? 'text-base' : 'text-lg'} font-semibold text-gray-800 ${marginBottom}`}>
+          Panel Configuration
+        </h2>
+      )}
+
+      {/* Essential Controls - Always Visible */}
+      {essentialControls}
+
       {/* Simple/Pro Mode Toggle */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
+      {!isQuick && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">Mode</span>
           <button
@@ -397,9 +409,10 @@ export function Controls() {
           </span>
         </div>
       </div>
+      )}
 
       {/* Pro Mode Controls - Progressive Disclosure */}
-      {configState.mode === 'pro' && (
+      {!isQuick && configState.mode === 'pro' && (
         <div className="mt-4 pt-4 border-t border-gray-200 animate-fade-in">
           <div className={spacing}>
             {/* Ambient Temperature with Stepper */}

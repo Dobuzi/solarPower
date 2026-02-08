@@ -13,6 +13,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Controls } from '../Controls';
 import { DataPanel } from '../DataPanel';
 import { TimeSlider } from '../TimeSlider';
+import { useSolarCalculation } from '../../hooks/useSolarCalculation';
+import type { SolarSummary } from '../../hooks/useSolarCalculation';
 
 type Tab = 'time' | 'config' | 'output';
 type SnapPoint = 'peek' | 'default' | 'full';
@@ -24,9 +26,55 @@ interface MobileBottomSheetProps {
 }
 
 // Peek height calculation
-// Handle (~20px) + Tabs (~44px) + Safe Area (~34px max) = ~98px
-// We use 72px base + safe area for a minimal but accessible peek
-const PEEK_HEIGHT_PX = 72;
+// Handle (~20px) + Summary (~80px) + Safe Area (~34px max) = ~150px
+// We use 156px base + safe area for a minimal quick-estimate peek
+const PEEK_HEIGHT_PX = 156;
+
+interface SummaryCardProps {
+  summary: SolarSummary | null;
+}
+
+function SummaryCard({ summary }: SummaryCardProps) {
+  if (!summary) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white/95 shadow-sm p-3 animate-pulse">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <div className="h-3 w-16 bg-gray-200 rounded" />
+            <div className="h-5 w-20 bg-gray-300 rounded" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-3 w-16 bg-gray-200 rounded" />
+            <div className="h-5 w-20 bg-gray-300 rounded" />
+          </div>
+        </div>
+        <div className="mt-2 h-3 w-32 bg-gray-200 rounded" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white/95 shadow-sm p-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400">Now</div>
+          <div className="text-lg font-semibold text-gray-800">
+            {(summary.instantPower / 1000).toFixed(2)} kW
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400">Today</div>
+          <div className="text-lg font-semibold text-gray-800">
+            {(summary.dailyEnergy / 1000).toFixed(1)} kWh
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 text-xs text-gray-500">
+        Local time: {summary.currentTimeLocal} · {summary.systemSizeKW.toFixed(1)} kW system
+      </div>
+    </div>
+  );
+}
 
 export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: MobileBottomSheetProps) {
   const [activeTab, setActiveTab] = useState<Tab>('output');
@@ -37,6 +85,7 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
   const currentY = useRef<number>(0);
   const isDragging = useRef<boolean>(false);
   const hasSeenHint = useRef<boolean>(false); // Track if user has seen the handle hint
+  const { summary } = useSolarCalculation();
 
   const tabs: { id: Tab; label: string; icon: JSX.Element }[] = [
     {
@@ -258,6 +307,19 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
     }
   };
 
+  const handleExpandClick = () => {
+    if (snapPoint === 'peek') {
+      setSnapPoint('default');
+    } else if (snapPoint === 'default') {
+      setSnapPoint('full');
+    }
+  };
+
+  const showTabs = snapPoint === 'full';
+  const showFullContent = snapPoint === 'full';
+  const showQuickControls = snapPoint === 'default';
+  const showPeekCTA = snapPoint === 'peek';
+
   return (
     <>
       {/* Backdrop - show when sheet is expanded (not at peek) */}
@@ -282,7 +344,7 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
       {/* Bottom Sheet */}
       <div
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-all duration-300 ease-out ${
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-all duration-300 ease-out flex flex-col ${
           isOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
@@ -347,44 +409,86 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
           `}</style>
         </div>
 
-        {/* Tabs - always clickable, no disabled state */}
-        <div
-          className="flex border-b border-gray-200"
-          style={{
-            // Allow vertical scrolling but prevent horizontal pan
-            touchAction: 'pan-y',
-          }}
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              // IMPORTANT: Never disable active tab - it needs to toggle collapse
-              disabled={false}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'text-solar-600 border-b-2 border-solar-500'
-                  : 'text-gray-500 hover:text-gray-700 active:text-gray-900'
-              }`}
-              style={{
-                minHeight: '44px',
-                // Ensure button is always interactive
-                pointerEvents: 'auto',
-              }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+        {/* Snap labels */}
+        <div className="px-4 pb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-gray-400">
+          <span className={snapPoint === 'peek' ? 'text-solar-600 font-semibold' : ''}>Peek</span>
+          <span className={snapPoint === 'default' ? 'text-solar-600 font-semibold' : ''}>Default</span>
+          <span className={snapPoint === 'full' ? 'text-solar-600 font-semibold' : ''}>Full</span>
         </div>
 
-        {/* Content - scroll only area with touch-action: pan-y */}
-        {/* Only show content when not at peek */}
-        {snapPoint !== 'peek' && (
+        {/* Summary */}
+        <div className="px-4 pb-3">
+          <SummaryCard summary={summary} />
+        </div>
+
+        {/* Peek CTA */}
+        {showPeekCTA && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={handleExpandClick}
+              className="w-full min-h-[44px] rounded-lg bg-solar-500 text-white text-sm font-medium shadow-sm hover:bg-solar-600 active:bg-solar-700 transition-colors"
+            >
+              Expand for controls
+            </button>
+          </div>
+        )}
+
+        {/* Default Quick Controls */}
+        {showQuickControls && (
+          <div className="px-4 pb-3">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Quick controls
+            </div>
+            <div className="[&>div]:w-full [&>div]:shadow-none [&>div]:bg-transparent [&>div]:p-0">
+              <Controls variant="quick" />
+            </div>
+            <button
+              onClick={handleExpandClick}
+              className="w-full mt-3 min-h-[44px] rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            >
+              Full details
+            </button>
+          </div>
+        )}
+
+        {/* Tabs - only in full view */}
+        {showTabs && (
           <div
-            className="overflow-y-auto overscroll-contain"
+            className="flex border-b border-gray-200"
             style={{
-              height: `calc(${currentHeight}px - 68px - env(safe-area-inset-bottom, 0px))`,
+              // Allow vertical scrolling but prevent horizontal pan
+              touchAction: 'pan-y',
+            }}
+          >
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                // IMPORTANT: Never disable active tab - it needs to toggle collapse
+                disabled={false}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-solar-600 border-b-2 border-solar-500'
+                    : 'text-gray-500 hover:text-gray-700 active:text-gray-900'
+                }`}
+                style={{
+                  minHeight: '44px',
+                  // Ensure button is always interactive
+                  pointerEvents: 'auto',
+                }}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content - scroll only area with touch-action: pan-y */}
+        {showFullContent && (
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain"
+            style={{
               WebkitOverflowScrolling: 'touch',
               // Allow vertical scrolling, prevent sheet drag
               touchAction: 'pan-y',
@@ -433,7 +537,7 @@ export function MobileBottomSheet({ isOpen, onToggle, onSnapPointChange }: Mobil
                     console.log(`[Sheet] Collapsed tab bar clicked: ${tab.id}`);
                   }
                   setActiveTab(tab.id);
-                  setSnapPoint('default');
+                  setSnapPoint('full');
                   onToggle();
                 }}
                 className="flex-1 flex flex-col items-center justify-center py-2 text-gray-500 hover:text-solar-600 active:text-solar-700 transition-colors"

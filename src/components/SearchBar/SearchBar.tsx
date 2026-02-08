@@ -8,7 +8,11 @@ export function SearchBar() {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const { isLoading, results, search } = useGeocoding();
+  const [isFocused, setIsFocused] = useState(false);
+  const [lastSelection, setLastSelection] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const { isLoading, results, search, reverseGeocode, error } = useGeocoding();
   const setLocation = useSimulatorStore((state) => state.setLocation);
   const setOptimalOrientation = useSimulatorStore((state) => state.setOptimalOrientation);
   const location = useSimulatorStore((state) => state.location);
@@ -16,6 +20,7 @@ export function SearchBar() {
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const listboxId = 'search-results-listbox';
+  const canUseGeolocation = typeof window !== 'undefined' && !!navigator.geolocation && window.isSecureContext;
 
   const handleSearch = useCallback((value: string) => {
     setQuery(value);
@@ -36,6 +41,7 @@ export function SearchBar() {
   const handleSelect = useCallback((loc: Location) => {
     setLocation(loc);
     setOptimalOrientation();
+    setLastSelection(loc.address);
     setQuery('');
     setIsOpen(false);
     inputRef.current?.blur();
@@ -52,6 +58,47 @@ export function SearchBar() {
     inputRef.current?.focus();
   }, []);
 
+  const handleUseMyLocation = useCallback(() => {
+    if (!canUseGeolocation || isLocating) return;
+
+    setIsLocating(true);
+    setGeoError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const loc = await reverseGeocode(latitude, longitude);
+          const nextLocation: Location = loc ?? {
+            latitude,
+            longitude,
+            timezone: 'UTC',
+            address: `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`,
+          };
+
+          setLocation(nextLocation);
+          setOptimalOrientation();
+          setLastSelection(nextLocation.address);
+          setQuery('');
+          setIsOpen(false);
+        } catch (err) {
+          setGeoError('Unable to use your location right now.');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      () => {
+        setIsLocating(false);
+        setGeoError('Location permission was denied.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }, [canUseGeolocation, isLocating, reverseGeocode, setLocation, setOptimalOrientation]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -62,6 +109,12 @@ export function SearchBar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!query.trim() && location.address) {
+      setLastSelection(location.address);
+    }
+  }, [location.address, query]);
 
   // Close dropdown on escape
   useEffect(() => {
@@ -74,6 +127,10 @@ export function SearchBar() {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
+
+  const placeholderText = isFocused
+    ? 'Search location...'
+    : (lastSelection || location.address || 'Search location...');
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -90,20 +147,24 @@ export function SearchBar() {
           type="text"
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
-          onFocus={() => query.trim() && results.length > 0 && setIsOpen(true)}
+          onFocus={() => {
+            setIsFocused(true);
+            query.trim() && results.length > 0 && setIsOpen(true);
+          }}
+          onBlur={() => setIsFocused(false)}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls={listboxId}
           aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
           aria-label="Search location"
-          placeholder="Search location..."
-          className="w-full sm:w-64 px-4 py-3 text-gray-800 focus:outline-none bg-transparent"
+          placeholder={placeholderText}
+          className="w-full sm:w-64 px-4 py-3 text-gray-800 focus:outline-none bg-transparent min-h-[44px]"
         />
         {query && (
           <button
             onClick={handleClear}
-            className="pr-2 text-gray-400 hover:text-gray-600"
+            className="pr-2 text-gray-400 hover:text-gray-600 min-h-[44px]"
             aria-label="Clear search"
             type="button"
           >
@@ -117,6 +178,29 @@ export function SearchBar() {
             <div className="animate-spin h-5 w-5 border-2 border-solar-500 border-t-transparent rounded-full" />
             <span className="text-xs text-gray-500">Searching…</span>
           </div>
+        )}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={handleUseMyLocation}
+          disabled={!canUseGeolocation || isLocating}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+            canUseGeolocation
+              ? 'border-solar-200 text-solar-700 hover:bg-solar-50 active:bg-solar-100'
+              : 'border-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
+          style={{ minHeight: '44px' }}
+          title={canUseGeolocation ? 'Use your current location' : 'Location requires HTTPS and permission'}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a3 3 0 110 6 3 3 0 010-6z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.4 15a7.5 7.5 0 10-2.2 4.7" />
+          </svg>
+          {isLocating ? 'Locating…' : 'Use my location'}
+        </button>
+        {(geoError || error) && (
+          <span className="text-xs text-red-600">{geoError || error}</span>
         )}
       </div>
 

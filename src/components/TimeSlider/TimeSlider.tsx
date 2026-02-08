@@ -2,13 +2,16 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useSimulatorStore } from '../../store/simulatorStore';
 import { useAnimation } from '../../hooks/useAnimation';
 import { useSolarCalculation } from '../../hooks/useSolarCalculation';
-import { formatLocalHour } from '../../core/timezone';
+import { formatLocalHour, getLocalHourFromUtc } from '../../core/timezone';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 
 export function TimeSlider() {
   const { date, setDate, isNight, isTwilight, location } = useSimulatorStore();
   const { isAnimating, animationHour, toggle, setAnimationHour } = useAnimation();
   const { setAnimationSpeed, animationSpeed } = useSimulatorStore();
   const { summary, daylightHours } = useSolarCalculation();
+  const isMobile = useIsMobile();
+  const isReady = Boolean(summary);
 
   // Debounce slider drag for performance
   const lastUpdateRef = useRef<number>(0);
@@ -74,6 +77,13 @@ export function TimeSlider() {
     const newDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     newDate.setHours(Math.floor(animationHour), Math.round((animationHour % 1) * 60), 0, 0);
     setDate(newDate);
+  };
+
+  const jumpToNow = () => {
+    const now = new Date();
+    const localHour = getLocalHourFromUtc(now, location.timezone);
+    setDate(now);
+    setAnimationHour(localHour);
   };
 
   // Get sunrise/sunset hours directly from summary (computed via getLocalHourFromUtc)
@@ -142,7 +152,7 @@ export function TimeSlider() {
   }, [sunTimes]);
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-4">
+    <div className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-4 ${!isReady ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center">
           <h3 className="text-sm font-medium text-gray-700">Time Control</h3>
@@ -153,6 +163,7 @@ export function TimeSlider() {
         <div className="flex items-center space-x-2">
           <button
             onClick={toggle}
+            disabled={!isReady}
             className={`p-2 rounded-lg transition-colors ${
               isAnimating
                 ? 'bg-solar-500 text-white'
@@ -173,6 +184,7 @@ export function TimeSlider() {
           <select
             value={animationSpeed}
             onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
+            disabled={!isReady}
             className="text-sm bg-gray-100 border-0 rounded-lg px-2 py-2"
             title="Animation speed"
           >
@@ -190,6 +202,9 @@ export function TimeSlider() {
             {formatLocalHour(animationHour)}
           </span>
           <span className="text-sm text-gray-500">{formatDate(date)}</span>
+        </div>
+        <div className="text-xs text-gray-500 mb-2">
+          Local time ({location.timezone})
         </div>
 
         {/* Slider with day/night visualization */}
@@ -220,6 +235,7 @@ export function TimeSlider() {
             value={animationHour}
             onChange={handleSliderChange}
             aria-valuetext={formatLocalHour(animationHour)}
+            disabled={!isReady}
             className="w-full h-2 bg-gray-200/50 rounded-lg appearance-none cursor-pointer accent-solar-500 relative z-10"
           />
         </div>
@@ -231,6 +247,32 @@ export function TimeSlider() {
           <span>6 PM</span>
           <span>12 AM</span>
         </div>
+
+        {isMobile && (
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <button
+              onClick={() => adjustMinutes(-60)}
+              disabled={!isReady}
+              className="min-h-[44px] rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 active:bg-gray-300 transition-colors"
+            >
+              −1h
+            </button>
+            <button
+              onClick={jumpToNow}
+              disabled={!isReady}
+              className="min-h-[44px] rounded-lg bg-solar-500 text-white text-xs font-medium hover:bg-solar-600 active:bg-solar-700 transition-colors"
+            >
+              Now
+            </button>
+            <button
+              onClick={() => adjustMinutes(60)}
+              disabled={!isReady}
+              className="min-h-[44px] rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 active:bg-gray-300 transition-colors"
+            >
+              +1h
+            </button>
+          </div>
+        )}
 
         {/* Sunrise/Sunset markers - only show if valid */}
         <div className="relative h-3 mt-1">
@@ -272,6 +314,7 @@ export function TimeSlider() {
               newDate.setHours(Math.floor(animationHour), 0, 0, 0);
               setDate(newDate);
             }}
+            disabled={!isReady}
             className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-solar-500 focus:border-solar-500"
           />
         </label>
@@ -282,27 +325,32 @@ export function TimeSlider() {
             step="60"
             value={formatTimeInput(animationHour)}
             onChange={(e) => handleTimeInputChange(e.target.value)}
+            disabled={!isReady}
             className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-solar-500 focus:border-solar-500"
           />
         </label>
       </div>
 
       {/* Quick time buttons */}
-      <div className="flex gap-2 mt-3 flex-wrap">
+      {!isMobile && (
+        <div className="flex gap-2 mt-3 flex-wrap">
         <button
           onClick={() => jumpToToday()}
+          disabled={!isReady}
           className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
         >
           Today
         </button>
         <button
           onClick={() => adjustMinutes(-15)}
+          disabled={!isReady}
           className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
         >
           −15m
         </button>
         <button
           onClick={() => adjustMinutes(15)}
+          disabled={!isReady}
           className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
         >
           +15m
@@ -311,18 +359,21 @@ export function TimeSlider() {
           <>
             <button
               onClick={() => setAnimationHour(sunTimes.sunrise)}
+              disabled={!isReady}
               className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
             >
               Sunrise
             </button>
             <button
               onClick={() => setAnimationHour(12)}
+              disabled={!isReady}
               className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors"
             >
               Noon
             </button>
             <button
               onClick={() => setAnimationHour(sunTimes.sunset)}
+              disabled={!isReady}
               className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
             >
               Sunset
@@ -332,12 +383,14 @@ export function TimeSlider() {
         {!sunTimes.valid && (
           <button
             onClick={() => setAnimationHour(12)}
+            disabled={!isReady}
             className="flex-1 min-w-[80px] px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors"
           >
             Solar Noon
           </button>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Time basis indicator */}
       <div className="mt-3 pt-2 border-t border-gray-200">
